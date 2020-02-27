@@ -8,10 +8,15 @@ output:
 ---
 
 # Questions
+- What to do with missing values? Skip them? Linea interpolate?
+- What to do with residuals?
+
+- Is it stationary?
 - auto.arima vs sarima
 
 # TODO
 - AIC comparison
+- Look at difference
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -19,8 +24,10 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(astsa)
+library(imputeTS)
+library(rjson)
+library(forecast)
 
-library("rjson")
 data <- fromJSON(file = "./mammoth.json")
 plot(data$depth, type="o")
 ```
@@ -122,46 +129,10 @@ plot(series)
 ```
 
 
-
-
-
-```{r}
-
-# inds <- seq(as.Date(data$date[1], "%m/%d/%y"), as.Date(data$date[length(data$date) - 1], "%m/%d/%y"), by = "day")
-
-# series <- ts(data$depth, start=c(as.numeric(format(inds[1], "%Y")), as.numeric(format(inds[1], "%j"))), frequency=365)
-
-# series <- ts(data$depth, start=c(as.numeric(format(data$date[1], "%Y")), as.numeric(format(data$date[1], "%j"))), frequency=365.25)
-
-# plot(series)
-```
-
-```{r}
-sum(is.na(data$depth) / length(data$depth))
-
-(tab <- table(as.numeric(format.Date(data$date, "%m")), is.na(data$depth)))
-
-plot(tab[, 1] / (tab[, 1] + tab[, 2]), type="o")
-
-library(imputeTS)
-
-plot(series)
-series <- na_interpolation(series, option = "linear")
-plot(series)
-```
-
-
-```{r}
-#series <- ts(data$volume, start=c(2015, 3, 1), end=c(2020, 2, 23), frequency=52)
-
-#plot(series)
-#plot(series, ylim=c(0, 100))
-```
-
 # ACF
 ```{r}
-acf(series, lag.max = 52 * 2)
-pacf(series, lag.max = 52 * 2)
+acf(na_interpolation(series, option = "linear"), lag.max = 52 * 2)
+pacf(na_interpolation(series, option = "linear"), lag.max = 52 * 2)
 ```
 
 # Detrend
@@ -176,6 +147,27 @@ detrended <- series - predict(model, time(series))
 
 plot(detrended)
 ```
+
+```{r}
+sum(is.na(data$depth) / length(data$depth))
+
+(tab <- table(as.numeric(format.Date(data$date, "%m")), is.na(data$depth)))
+
+plot(tab[, 1] / (tab[, 1] + tab[, 2]), type="o")
+
+
+plot(detrended)
+detrended <- na_interpolation(detrended, option = "linear")
+plot(detrended)
+```
+
+```{r}
+plot(diff(detrended))
+acf(diff(detrended), lag.max = 52 * 2)
+pacf(diff(detrended), lag.max = 52 * 2)
+```
+
+
 # Periodogram
 
 ```{r}
@@ -220,27 +212,60 @@ pacf(detrended, lag.max = 52 * 2)
 ```
 
 # Fit ARIMA
+
 ```{r}
 # auto.arima(detrended)
-# ARIMA(0,1,0)(0,1,0)[365] 
+# ARIMA(2,0,1)(1,1,0)[52]
 
-# sarima(detrended, 2,0,1, 1,1,0, 1)
-# sarima(detrended, 2,0,1, 1,1,0, 52)
-# sarima(detrended, 3,1,0)
+# Coefficients:
+#          ar1      ar2      ma1     sar1
+#       1.7781  -0.7911  -0.5474  -0.5192
+# s.e.  0.0679   0.0666   0.0923   0.0433
+# 
+# sigma^2 estimated as 148.9:  log likelihood=-1489.99
+# AIC=2989.98   AICc=2990.14   BIC=3009.65
 
-model <- arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52))
-fore <- predict(model, n.ahead=52 * 10)
+sarima(detrended, 2,0,1, 1,1,0, 1)
+sarima(detrended, 2,0,1, 1,1,1, 1)
+```
+```{r}
+models <- list(
+  arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52)),
+  # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,1,0), period=52))#,
+  # arima(detrended, order=c(3,1,2), seasonal=list(order=c(1,1,0), period=52))#,
+  arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,1), period=52)),
+  arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,1), period=52))#,
+  # arima(detrended, order=c(3,1,2), seasonal=list(order=c(2,1,1), period=52))
+)
 
+models
+
+lapply(models, function(x) {
+  return(x$aic)
+})
+```
+
+
+
+```{r}
+best_model <- models[[2]]
+fore <- predict(best_model, n.ahead=52 * 10)
+
+first_date <- time(series)[1]
 last_date <- time(series)[length(time(series))]
-ts.plot(detrended, fore$pred, col=1:2, xlim=c(last_date - 3,last_date + 3/12), ylab="Forecast")
-abline(v = last_date)
-abline(v = last_date - 1)
-abline(v = last_date - 2)
+
+ts.plot(detrended, fore$pred, col=1:2, xlim=c(first_date,last_date + 10 / 52), ylab="Forecast")
+
 # ts.plot(detrended, fore$pred, col=1:2, ylab="Forecast")
 U = fore$pred+fore$se; L = fore$pred-fore$se
 xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
 polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
 lines(fore$pred, type="p", col=2)
+
+for (y in 0:8) {
+  abline(v = last_date - y, lty="dashed", col="gray")
+}
+
 
 ```
 
