@@ -16,54 +16,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-# data <- read.csv("squaw.csv")
-# range <- 1:555
-# data <- data.frame(date = rev(data$ï..Date[range]), depth = rev(data$Squaw.Red.Dog.6200.[range]))
-# 
-# 
-# inds <- seq(as.Date(data$date[1], "%m/%d/%y"), as.Date(data$date[length(data$date) - 1], "%m/%d/%y"), by = "day")
-# 
-# series <- ts(data$depth, start=c(as.numeric(format(inds[1], "%Y")), as.numeric(format(inds[1], "%j"))), frequency=365)
-# 
-# plot(series, type="o")
-# 
-# sum(is.na(data$depth) / length(data$depth))
-# 
-# library(forecast)
-# plot(na.interp(series))
-
-```
-
-
-
-```{r}
-# library(astsa)
-# 
-# #data <- read.csv("beer.csv")
-# #data <- data.frame(date = data[-1,0], volume = as.numeric(as.character(data[-1,1])))
-# 
-# plot(data)
-# 
-# nrow(data)
-# data
-```
-
-```{r}
-# data <- read.csv("mammoth.csv")
-# 
-# start_year <- 1969
-# 
-# year <- c()
-# month <- c()
-# depth
-# 
-# for (i in 1:nrow(data)) {
-#   # month <- 
-# }
-
-```
-
-```{r}
 # find:
 # window.onload = function() {
 #   var ctx2019
