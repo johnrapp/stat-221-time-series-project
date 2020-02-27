@@ -7,8 +7,10 @@ output:
   html_document: default
 ---
 
+# Questions
+- auto.arima vs sarima
+
 # TODO
-- Weekly
 - AIC comparison
 
 ```{r setup, include=FALSE}
@@ -16,53 +18,107 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-# find:
-# window.onload = function() {
-#   var ctx2019
-
-#JSON.stringify((function (){
-#    let data = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map(y => window["config20" +  y].data.datasets[0].data).reduce((a, #b) => a.concat(b));
-#    let dates = data.map(i => i.x).map(str => str.substring(0, 10));
-#    let depth = data.map(i => i.y);
-#    return {dates, depth};
-#})(), null, "")
-
 library(astsa)
 
 library("rjson")
 data <- fromJSON(file = "./mammoth.json")
+plot(data$depth, type="o")
+```
 
+```{r}
 data$dates <- as.Date(data$dates, "%Y-%m-%d")
 
 all_dates <- seq(data$dates[1], data$dates[length(data$dates)], by = "day")
 
 length(data$dates) / length(all_dates)
 
-origin <- "1970-01-01"
-
 all_depths <- rep(NA, length(all_dates))
 
 for (date in intersect(data$dates, all_dates)) {
   all_depths[which(all_dates == date)] <- data$depth[which(data$dates == date)[1]]
 }
+```
 
+```{r}
 table(as.numeric(format.Date(data$date, "%m")), data$depth == 0)
 
 all_depths[which(all_depths == 0)] <- NA
+```
+
+```{r}
 
 data <- data.frame(date = all_dates, depth = all_depths)
 
-length(all_depths)
+nrow(data)
 
 plot(data, type="o")
 ```
 
 ```{r}
-tab <- table(as.numeric(format.Date(data$date, "%m")), is.na(data$depth))
-
-tab
+(tab <- table(as.numeric(format.Date(data$date, "%m")), is.na(data$depth)))
 
 plot(tab[, 1] / (tab[, 1] + tab[, 2]), type="o")
+```
+
+```{r}
+
+mean_ignore_na <- function(x) {
+  non_na <- x[which(!is.na(x))]
+  return(ifelse(length(non_na) == 0, NA, mean(non_na)))
+}
+
+first_sat <- 3
+last_sat <- length(data$date) - 3
+
+week_length <- 7
+nr_weeks <- (last_sat - first_sat) / week_length
+
+week_start <- data$date[first_sat]
+week_end <- data$date[last_sat]
+
+weekly_depths <- mean_ignore_na(data$depth[1:first_sat])
+
+# for(i in seq(from = first_sat, to = last_sat, by = week_length)) {
+for (i in 2:(nr_weeks + 1)) {
+  sunday <- (first_sat + 1) + (i - 2)*week_length
+  saturday <- sunday + 6
+
+  weekly_depths[i] <- mean_ignore_na(data$depth[sunday:saturday])
+}
+
+weeks <- seq(data$date[first_sat], data$date[last_sat], by=7)
+
+data <- data.frame(
+  depth = weekly_depths,
+  date = weeks
+)
+
+plot(data$depth, type="o")
+
+
+# format(date, "%U")
+
+# as.numeric(format(data$date, "%U"))
+
+# data$date[which(as.numeric(format(data$date, "%U")) == 52)]
+# format(data$date[which(as.numeric(format(data$date, "%U")) == 52)], "%a")
+
+# aggregate(data$depth,
+#           list(week = as.numeric(format(data$date, "%U"))),
+#           function(x) {
+#             print(length(x))
+#             return("hej")
+#           })
+```
+
+```{r}
+series <- ts(
+  data$depth,
+  start=c(as.numeric(format(data$date[1], "%Y")), as.numeric(format(data$date[1], "%U"))),
+  # end=c(as.numeric(format(data$date[length(data$date)], "%Y")), as.numeric(format(data$date[length(data$date)], "%U"))),
+  frequency=365.25/7
+)
+plot(series)
 ```
 
 
@@ -75,17 +131,22 @@ plot(tab[, 1] / (tab[, 1] + tab[, 2]), type="o")
 
 # series <- ts(data$depth, start=c(as.numeric(format(inds[1], "%Y")), as.numeric(format(inds[1], "%j"))), frequency=365)
 
-series <- ts(data$depth, start=c(as.numeric(format(data$date[1], "%Y")), as.numeric(format(data$date[1], "%j"))), frequency=365.25)
+# series <- ts(data$depth, start=c(as.numeric(format(data$date[1], "%Y")), as.numeric(format(data$date[1], "%j"))), frequency=365.25)
 
-plot(series)
+# plot(series)
 ```
 
 ```{r}
 sum(is.na(data$depth) / length(data$depth))
 
-library(forecast)
+(tab <- table(as.numeric(format.Date(data$date, "%m")), is.na(data$depth)))
 
-series <- na.interp(series)
+plot(tab[, 1] / (tab[, 1] + tab[, 2]), type="o")
+
+library(imputeTS)
+
+plot(series)
+series <- na_interpolation(series, option = "linear")
 plot(series)
 ```
 
@@ -99,8 +160,8 @@ plot(series)
 
 # ACF
 ```{r}
-acf(series, lag.max = 365 * 2)
-pacf(series, lag.max = 365 * 2)
+acf(series, lag.max = 52 * 2)
+pacf(series, lag.max = 52 * 2)
 ```
 
 # Detrend
@@ -154,8 +215,8 @@ abline(v=freq, col="yellow")
 
 # ACF
 ```{r}
-acf(detrended, lag.max = 60)
-pacf(detrended, lag.max = 60)
+acf(detrended, lag.max = 52 * 2)
+pacf(detrended, lag.max = 52 * 2)
 ```
 
 # Fit ARIMA
@@ -163,14 +224,19 @@ pacf(detrended, lag.max = 60)
 # auto.arima(detrended)
 # ARIMA(0,1,0)(0,1,0)[365] 
 
-sarima(detrended, 5,1,0, 1,1,0, 1)
+# sarima(detrended, 2,0,1, 1,1,0, 1)
+# sarima(detrended, 2,0,1, 1,1,0, 52)
 # sarima(detrended, 3,1,0)
 
-model <- arima(detrended, order=c(0,1,0), seasonal=list(order=c(0,1,0), period=1))
-fore <- predict(model, n.ahead=30)
+model <- arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52))
+fore <- predict(model, n.ahead=52 * 10)
 
-
-ts.plot(detrended, fore$pred, col=1:2, xlim=c(2019 + 11/12,2020 + 6/12), ylab="Forecast")
+last_date <- time(series)[length(time(series))]
+ts.plot(detrended, fore$pred, col=1:2, xlim=c(last_date - 3,last_date + 3/12), ylab="Forecast")
+abline(v = last_date)
+abline(v = last_date - 1)
+abline(v = last_date - 2)
+# ts.plot(detrended, fore$pred, col=1:2, ylab="Forecast")
 U = fore$pred+fore$se; L = fore$pred-fore$se
 xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
 polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
@@ -185,4 +251,4 @@ lines(fore$pred, type="p", col=2)
 
 # Estimate the spectral density using the periodogram and smoothed periodogram. 
 
-# Comment on any clear cycles and the overall distribution of the variance by frequency, and its relationship to the smoothness of your time ser
+# Comment on any clear cycles and the overall distribution of the variance by frequency, and its relationship to the smoothness of your time series
