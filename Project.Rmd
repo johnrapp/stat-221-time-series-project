@@ -1,0 +1,236 @@
+---
+title: "STAT 221 Project"
+author: "John Rapp Farnes | 405461225"
+date: "3/5 2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# TODO
+- Weekly
+- AIC comparison
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# data <- read.csv("squaw.csv")
+# range <- 1:555
+# data <- data.frame(date = rev(data$ï..Date[range]), depth = rev(data$Squaw.Red.Dog.6200.[range]))
+# 
+# 
+# inds <- seq(as.Date(data$date[1], "%m/%d/%y"), as.Date(data$date[length(data$date) - 1], "%m/%d/%y"), by = "day")
+# 
+# series <- ts(data$depth, start=c(as.numeric(format(inds[1], "%Y")), as.numeric(format(inds[1], "%j"))), frequency=365)
+# 
+# plot(series, type="o")
+# 
+# sum(is.na(data$depth) / length(data$depth))
+# 
+# library(forecast)
+# plot(na.interp(series))
+
+```
+
+
+
+```{r}
+# library(astsa)
+# 
+# #data <- read.csv("beer.csv")
+# #data <- data.frame(date = data[-1,0], volume = as.numeric(as.character(data[-1,1])))
+# 
+# plot(data)
+# 
+# nrow(data)
+# data
+```
+
+```{r}
+# data <- read.csv("mammoth.csv")
+# 
+# start_year <- 1969
+# 
+# year <- c()
+# month <- c()
+# depth
+# 
+# for (i in 1:nrow(data)) {
+#   # month <- 
+# }
+
+```
+
+```{r}
+# find:
+# window.onload = function() {
+#   var ctx2019
+
+#JSON.stringify((function (){
+#    let data = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map(y => window["config20" +  y].data.datasets[0].data).reduce((a, #b) => a.concat(b));
+#    let dates = data.map(i => i.x).map(str => str.substring(0, 10));
+#    let depth = data.map(i => i.y);
+#    return {dates, depth};
+#})(), null, "")
+
+library(astsa)
+
+library("rjson")
+data <- fromJSON(file = "./mammoth.json")
+
+data$dates <- as.Date(data$dates, "%Y-%m-%d")
+
+all_dates <- seq(data$dates[1], data$dates[length(data$dates)], by = "day")
+
+length(data$dates) / length(all_dates)
+
+origin <- "1970-01-01"
+
+all_depths <- rep(NA, length(all_dates))
+
+for (date in intersect(data$dates, all_dates)) {
+  all_depths[which(all_dates == date)] <- data$depth[which(data$dates == date)[1]]
+}
+
+table(as.numeric(format.Date(data$date, "%m")), data$depth == 0)
+
+all_depths[which(all_depths == 0)] <- NA
+
+data <- data.frame(date = all_dates, depth = all_depths)
+
+length(all_depths)
+
+plot(data, type="o")
+```
+
+```{r}
+tab <- table(as.numeric(format.Date(data$date, "%m")), is.na(data$depth))
+
+tab
+
+plot(tab[, 1] / (tab[, 1] + tab[, 2]), type="o")
+```
+
+
+
+
+
+```{r}
+
+# inds <- seq(as.Date(data$date[1], "%m/%d/%y"), as.Date(data$date[length(data$date) - 1], "%m/%d/%y"), by = "day")
+
+# series <- ts(data$depth, start=c(as.numeric(format(inds[1], "%Y")), as.numeric(format(inds[1], "%j"))), frequency=365)
+
+series <- ts(data$depth, start=c(as.numeric(format(data$date[1], "%Y")), as.numeric(format(data$date[1], "%j"))), frequency=365.25)
+
+plot(series)
+```
+
+```{r}
+sum(is.na(data$depth) / length(data$depth))
+
+library(forecast)
+
+series <- na.interp(series)
+plot(series)
+```
+
+
+```{r}
+#series <- ts(data$volume, start=c(2015, 3, 1), end=c(2020, 2, 23), frequency=52)
+
+#plot(series)
+#plot(series, ylim=c(0, 100))
+```
+
+# ACF
+```{r}
+acf(series, lag.max = 365 * 2)
+pacf(series, lag.max = 365 * 2)
+```
+
+# Detrend
+```{r}
+model <- lm(series ~ time(series))
+summary(model)
+
+plot(series)
+lines(series*0 + predict(model, time(series)), type="l", col="red")
+
+detrended <- series - predict(model, time(series))
+
+plot(detrended)
+```
+# Periodogram
+
+```{r}
+pg <- mvspec(detrended, log="no")
+
+k = kernel("modified.daniell", c(3,3))
+pg <- mvspec(soi, kernel=k, taper=.1, log="no")
+
+max_index <- which(pg$spec == max(pg$spec))
+freq <- pg$freq[max_index]
+
+1/freq
+
+plot(pg$freq, pg$spec, type="l")
+abline(v=freq, col="blue")
+
+
+max_index2 <- which(pg$spec == max(pg$spec[which(pg$freq < 0.5)]))
+freq <- pg$freq[max_index2]
+
+1/freq
+abline(v=freq, col="red")
+
+max_index3 <- which(pg$spec == max(pg$spec[which(pg$freq > 1.5)]))
+freq <- pg$freq[max_index3]
+
+1/freq
+abline(v=freq, col="green")
+
+max_index4 <- which(pg$spec == max(pg$spec[which(pg$freq > 2.5)]))
+freq <- pg$freq[max_index4]
+
+1/freq
+abline(v=freq, col="yellow")
+```
+
+
+# ACF
+```{r}
+acf(detrended, lag.max = 60)
+pacf(detrended, lag.max = 60)
+```
+
+# Fit ARIMA
+```{r}
+# auto.arima(detrended)
+# ARIMA(0,1,0)(0,1,0)[365] 
+
+sarima(detrended, 5,1,0, 1,1,0, 1)
+# sarima(detrended, 3,1,0)
+
+model <- arima(detrended, order=c(0,1,0), seasonal=list(order=c(0,1,0), period=1))
+fore <- predict(model, n.ahead=30)
+
+
+ts.plot(detrended, fore$pred, col=1:2, xlim=c(2019 + 11/12,2020 + 6/12), ylab="Forecast")
+U = fore$pred+fore$se; L = fore$pred-fore$se
+xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
+polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
+lines(fore$pred, type="p", col=2)
+
+```
+
+
+# Show residuals and measure of how well fit
+
+# Comment on fitted model
+
+# Estimate the spectral density using the periodogram and smoothed periodogram. 
+
+# Comment on any clear cycles and the overall distribution of the variance by frequency, and its relationship to the smoothness of your time ser
