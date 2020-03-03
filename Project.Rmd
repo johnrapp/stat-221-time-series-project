@@ -11,12 +11,10 @@ output:
 - What to do with missing values? Skip them? Linear interpolate?
 - What to do with residuals?
 
-- Is it stationary?
-- auto.arima vs sarima periods
+- Is it stationary? / should some other trend be removed?
+- (P)ACF indicating AR(2)? Why no spike at lag 1?
 
 # TODO
-- AIC comparison
-- Look at difference
 - Note that higher order polynomial regressions in t or nonparametric smoothing (linear filtering) could be used in cases where the trend is nonlinear.
 
 ```{r setup, include=FALSE}
@@ -76,7 +74,7 @@ mean_ignore_na <- function(x) {
 }
 
 first_sat <- 3
-last_sat <- length(data$date) - 3
+last_sat <- length(data$date) - 2
 
 week_length <- 7
 nr_weeks <- (last_sat - first_sat) / week_length
@@ -102,21 +100,6 @@ data <- data.frame(
 )
 
 plot(data$depth, type="o")
-
-
-# format(date, "%U")
-
-# as.numeric(format(data$date, "%U"))
-
-# data$date[which(as.numeric(format(data$date, "%U")) == 52)]
-# format(data$date[which(as.numeric(format(data$date, "%U")) == 52)], "%a")
-
-# aggregate(data$depth,
-#           list(week = as.numeric(format(data$date, "%U"))),
-#           function(x) {
-#             print(length(x))
-#             return("hej")
-#           })
 ```
 
 ```{r}
@@ -138,13 +121,13 @@ pacf(na_interpolation(series, option = "linear"), lag.max = 52 * 2)
 
 # Detrend
 ```{r}
-model <- lm(series ~ time(series))
-summary(model)
+lin.mod <- lm(series ~ time(series))
+summary(lin.mod)
 
 plot(series)
-lines(series*0 + predict(model, time(series)), type="l", col="red")
+lines(series*0 + predict(lin.mod, time(series)), type="l", col="red")
 
-detrended <- series - predict(model, time(series))
+detrended <- series - predict(lin.mod, time(series))
 
 plot(detrended)
 ```
@@ -177,24 +160,36 @@ pacf(diff(detrended), lag.max = 52 * 2)
 
 pg <- mvspec(detrended, log="no")
 
+spec.ar(detrended)
+
 k = kernel("daniell", c(1,1))
 pg <- mvspec(detrended, kernel=k, log="no")
+
+l <- 1/sum(k$coef^2)
+
+alpha <- 0.05
+U = qchisq(alpha/2, 2*l)
+L = qchisq(1-alpha/2, 2*l)
 
 max_index <- which(pg$spec == max(pg$spec))
 freq <- pg$freq[max_index]
 
 1/freq
+conf <- l*c(2*pg$spec[max_index]/L,2*pg$spec[max_index]/U)
+segments(x0=freq,y0=conf[1],x1=freq,y1=conf[2],col="blue")
+segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="blue")
 
-plot(pg$freq, pg$spec, type="l")
-abline(v=freq, col="blue")
+# abline(v=freq, col="blue")
 
 
 max_index2 <- which(pg$spec == max(pg$spec[which(pg$freq < 0.5)]))
 freq <- pg$freq[max_index2]
 
 1/freq
-
-spec.ar(detrended)
+conf <- l*c(2*pg$spec[max_index2]/L,2*pg$spec[max_index2]/U)
+segments(x0=freq,y0=conf[1],x1=freq,y1=conf[2],col="red")
+segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="red")
+# abline(v=freq, col="red")
 ```
 
 
@@ -226,8 +221,8 @@ models <- list(
   arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52)),
   # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,1,0), period=52))#,
   # arima(detrended, order=c(3,1,2), seasonal=list(order=c(1,1,0), period=52))#,
-  arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,1), period=52)),
-  arima(detrended, order=c(3,0,3), seasonal=list(order=c(3,1,3), period=52)),
+  arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,1), period=52))#,
+  # arima(detrended, order=c(3,0,3), seasonal=list(order=c(3,1,3), period=52))
   # arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,1), period=52))#,
   # arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,2), period=52))#,
   # arima(detrended, order=c(3,1,2), seasonal=list(order=c(2,1,1), period=52))
@@ -244,16 +239,24 @@ lapply(models, function(x) {
 
 ```{r}
 best_model <- models[[2]]
-fore <- predict(best_model, n.ahead=52 * 10)
+
+weeks_ahead <- 52
+fore <- predict(best_model, n.ahead= weeks_ahead)
 
 first_date <- time(series)[1]
 last_date <- time(series)[length(time(series))]
 
-ts.plot(detrended, fore$pred, col=1:2, xlim=c(first_date,last_date + 10 / 52), ylab="Forecast")
-
-# ts.plot(detrended, fore$pred, col=1:2, ylab="Forecast")
+ts.plot(detrended, fore$pred, col=1:2, xlim=c(last_date - 52 / 52, last_date + weeks_ahead / 52), ylab="Forecast")
 U = fore$pred+fore$se; L = fore$pred-fore$se
 xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
+polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
+lines(fore$pred, type="p", col=2)
+
+ts.plot(detrended, fore$pred, col=1:2, xlim=c(first_date,last_date + weeks_ahead / 52), ylab="Forecast")
+
+U = fore$pred+fore$se; L = fore$pred-fore$se
+xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
+
 polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
 lines(fore$pred, type="p", col=2)
 
