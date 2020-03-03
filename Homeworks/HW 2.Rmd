@@ -1,0 +1,239 @@
+---
+title: "STAT 221 Homework 2"
+author: "John Rapp Farnes | 405461225"
+date: "2/13 2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 2.9
+
+a)
+
+```{r}
+library(astsa)
+
+model <- lm(soi ~ time(soi))
+
+(sum <- summary(model))
+
+sum$coefficients[2]
+```
+There is a significant trend in SOI in relation to time, where the SOI decreases ~0.007 every year.
+
+b)
+```{r}
+plot(soi, main="SOI, trend in red")
+lines(soi*0 + predict(model, time(soi)), type="l", col="red")
+
+detrended <- soi - predict(model, time(soi))
+
+plot(detrended, main="SOI detrended")
+```
+```{r}
+library(TSA)
+pg <- periodogram(detrended)
+
+```
+
+
+Two peaks, first at period:
+```{r}
+max_index <- which(pg$spec == max(pg$spec))
+freq <- pg$freq[max_index]
+
+1/freq
+```
+Or every year. Second at period:
+
+```{r}
+freq <- pg$freq[which(pg$spec[1:(max_index - 1)] == max(pg$spec[1:(max_index - 1)]))]
+
+1/freq
+```
+
+Or every five years, which is the probable El Nino cycle.
+
+\newpage
+
+# 3.2
+
+a)
+
+By expanding "backwards" in time, we have
+
+\begin{equation}
+  \begin{split}
+  x_t &= \phi x_{t-1} + w_t \\
+  &= \phi (\phi x_{t-2} + w_{t-1}) + w_t \\
+  &= \phi^2 x_{t-2} + \phi w_{t-1} + w_t \\
+  &\;\;\vdots \notag \\
+  &= \phi^k x_{t-k} + \sum_{j=0}^{k-1}\phi^j w_{t-j}
+  \end{split}
+\end{equation}
+
+When $k = t$ we get
+
+\begin{equation}
+  \begin{split}
+  x_t &= \phi^t x_{0} + \sum_{j=0}^{t-1}\phi^j w_{t-j} \\
+  &= \phi^t w_{0} + \sum_{j=0}^{t-1}\phi^j w_{t-j} \\
+  &= \sum_{j=0}^{t}\phi^j w_{t-j} \\
+  \end{split}
+\end{equation}
+
+b)
+
+We have
+
+\begin{equation}
+  \begin{split}
+  E(x_t) &= E(\sum_{j=0}^{t}\phi^j w_{t-j}) \\
+  &= \sum_{j=0}^{t}\phi^j E(w_{t-j}) = 0\\
+  \end{split}
+\end{equation}
+
+as $E(w_i) = 0 \: \forall i$
+
+c)
+
+As $Var(w_i) = \sigma_w^2\: \forall i$, we have
+
+\begin{equation}
+  \begin{split}
+  Var(x_t) &= Var(\sum_{j=0}^{t}\phi^j w_{t-j}) \\
+  &= \sum_{j=0}^{t}(\phi^{j})^2 Var(w_{t-j}) \\
+  &= \sigma_w^2 \sum_{j=0}^{t}\phi^{2j} \\
+  &= \sigma_w^2 \frac{1-\phi^{2(t+1)}}{1-\phi^2}
+  \end{split}
+\end{equation}
+
+by geometric series formula, as $|\phi| < 1 \implies |\phi^2| < 1$.
+
+d)
+
+\begin{equation}
+  \begin{split}
+  cov(x_{t+h}, x_t) &= E[(\sum_{j=0}^{t+h}\phi^j w_{t+h-j})(\sum_{j=0}^{t}\phi^j w_{t-j})] \\
+  &= E[(w_{t+h} + \dots + \phi^h w_t + \phi^{h+1} w_{t-1}+\dots+\phi^{h+t} w_{0})(w_t + \phi w_{t-1} + \dots+\phi^t w_{0}]) \\
+  &= \sigma_w^2 \sum_{j=0}^{t} \phi^{h+2j} \\
+  &= \sigma_w^2 \phi^{h} \sum_{j=0}^{t} \phi^{2j} \\
+  &= \phi^{h} \sigma_w^2 \frac{1-\phi^{2(t+1)}}{1-\phi^2} \\
+  &= \phi^h Var(x_t)
+  \end{split}
+\end{equation}
+
+e)
+We have $E(x_t)=0$ constant, however $\gamma(h) = \phi^h Var(x_t) = \phi^h \sigma_w^2 \frac{1-\phi^{2(t+1)}}{1-\phi^2}$ depends on time. Hence, the series is not stationary.
+
+f)
+We have $t \to \infty \implies \gamma(h) \to \phi^h \sigma_w^2 \frac{1}{1-\phi^2}$ depends only on $h$ and not on $t$, hence it is "asymptotically stationary."
+
+g)
+As we have just proved that this process estimates an AR(1) process, a AR(1) process could be simulated by simulating $n$ i.i.d $N(0,1)$ noise values as $w_t, t=1..n$ and then calculating $x_t$ by
+
+\begin{equation}
+\begin{cases}
+  x_t =  \phi x_{t-1}+w_t, t=1..n\dots \\
+  x_0=w_0
+\end{cases}
+\end{equation}
+
+h)
+We have, with $k=t$,
+
+\begin{equation}
+  \begin{split}
+  x_t &= \phi^t x_{0} + \sum_{j=0}^{t-1}\phi^j w_{t-j} \\
+  &= \phi^t w_{0}/\sqrt{1-\phi ^2} + \sum_{j=0}^{t-1}\phi^j w_{t-j} \implies \\
+  Var(x_t) &= \frac{(\phi^t)^2}{1-\phi ^2} \sigma_w^2 + \sigma_w^2 \frac{1-\phi^{2t}}{1-\phi^2} \\
+  &= \frac{\sigma_w^2}{1-\phi ^2}(\phi^{2t}+1-\phi^{2t}) \\
+  &= \frac{\sigma_w^2}{1-\phi ^2}
+  \end{split}
+\end{equation}
+
+So $Var(x_t)$ is constant, and $E(x_t)$ is still constant, hence the series is stationary.
+
+
+# 3.6
+
+We have
+\begin{equation}
+  \begin{split}
+  x_t &= -.9x_{t-2} + w_t \implies \\
+  x_t + .9x_{t-2} &= w_t \implies \\
+  (1 + 0.9B^2)x_t &= w_t
+  \end{split}
+\end{equation}
+
+So $\phi(z) = 1+0.9z^2$, which has the roots $z_i$:
+
+```{r}
+(z <- polyroot(c(1,0,0.9)))
+abs(polyroot(c(1,0,0.9)))
+```
+
+
+
+Hence $|z_i| > 1 \: \forall i$ and $z_i$ complex conjugate, as such the acf will have periodic behavior, see plot.
+
+```{r}
+plot(ARMAacf(ar = c(0, -0.9), lag.max = 10))
+lines(rep(0, 11))
+```
+
+
+# 3.9
+First we'll plot the simulated series
+
+```{r}
+set.seed(2020)
+ar <- arima.sim(list(order=c(1,0,0), ar=.6), n=100)
+ma <- arima.sim(list(order=c(0,0,1), ma=.9), n=100)
+arma <- arima.sim(list(order=c(1,0,1), ar=.6, ma=.9), n=100)
+
+par(mfrow=c(3, 1))
+plot(ar, ylab="x", main=(expression(AR(1)~~~phi==+.6)))
+plot(ma, ylab="x", main=(expression(MA(1)~~~theta==+.9)))
+plot(arma, ylab="x", main=(expression(ARMA(1, 1)~~~phi==+.6~theta==+.9)))
+```
+
+Next, we'll plot and compare the sample acf with the theoretical acf.
+
+```{r}
+par(mfrow=c(2, 1))
+plot(acf(ar, lag.max = 10, plot=FALSE), main=(expression(Sample~acf~AR(1)~~~phi==+.6)))
+plot(ARMAacf(ar = 0.6, lag.max = 10)[-1], main=(expression(Theoretical~acf~AR(1)~~~phi==+.6)), ylab = "ACF", xlab="Lag")
+
+par(mfrow=c(2, 1))
+plot(acf(ma, lag.max = 10, plot=FALSE), main=(expression(Sample~acf~MA(1)~~~theta==+.9)))
+plot(ARMAacf(ma = 0.9, lag.max = 10)[-1], main=(expression(Theoretical~acf~MA(1)~~~theta==+.9)), ylab = "ACF", xlab="Lag")
+
+par(mfrow=c(2, 1))
+plot(acf(arma, lag.max = 10, plot=FALSE), main=(expression(Sample~acf~ARMA(1, 1)~~~phi==+.6~theta==+.9)))
+plot(ARMAacf(ar = 0.6, ma = 0.9, lag.max = 10)[-1], main=(expression(Theoretical~acf~ARMA(1, 1)~~~phi==+.6~theta==+.9)), ylab = "ACF", xlab="Lag")
+```
+
+The plots are consistent with the general results of Table 3.1, as the AR(1) as well as ARMA(1,1) process tails off while the MA(1) cutts of after lag 1$=q$.
+
+
+```{r}
+par(mfrow=c(2, 1))
+plot(pacf(ar, lag.max = 10, plot=FALSE), main=(expression(Sample~pacf~AR(1)~~~phi==+.6)))
+plot(ARMAacf(ar = 0.6, lag.max = 10, pacf = TRUE)[-1], main=(expression(Theoretical~pacf~AR(1)~~~phi==+.6)), ylab = "ACF", xlab="Lag")
+
+par(mfrow=c(2, 1))
+plot(pacf(ma, lag.max = 10, plot=FALSE), main=(expression(Sample~pacf~MA(1)~~~theta==+.9)))
+plot(ARMAacf(ma = 0.9, lag.max = 10, pacf = TRUE)[-1], main=(expression(Theoretical~pacf~MA(1)~~~theta==+.9)), ylab = "ACF", xlab="Lag")
+
+par(mfrow=c(2, 1))
+plot(pacf(arma, lag.max = 10, plot=FALSE), main=(expression(Sample~pacf~ARMA(1, 1)~~~phi==+.6~theta==+.9)))
+plot(ARMAacf(ar = 0.6, ma = 0.9, lag.max = 10, pacf = TRUE)[-1], main=(expression(Theoretical~pacf~ARMA(1, 1)~~~phi==+.6~theta==+.9)), ylab = "ACF", xlab="Lag")
+```
+
+The plots are consistent with the general results of Table 3.1, as the MA(1) as well as ARMA(1,1) process tails off while the AR(1) cutts of after lag 1$=q$.

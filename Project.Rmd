@@ -8,15 +8,16 @@ output:
 ---
 
 # Questions
-- What to do with missing values? Skip them? Linea interpolate?
+- What to do with missing values? Skip them? Linear interpolate?
 - What to do with residuals?
 
 - Is it stationary?
-- auto.arima vs sarima
+- auto.arima vs sarima periods
 
 # TODO
 - AIC comparison
 - Look at difference
+- Note that higher order polynomial regressions in t or nonparametric smoothing (linear filtering) could be used in cases where the trend is nonlinear.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -163,6 +164,7 @@ plot(detrended)
 
 ```{r}
 plot(diff(detrended))
+plot(diff(detrended, differences = 2))
 acf(diff(detrended), lag.max = 52 * 2)
 pacf(diff(detrended), lag.max = 52 * 2)
 ```
@@ -171,10 +173,12 @@ pacf(diff(detrended), lag.max = 52 * 2)
 # Periodogram
 
 ```{r}
+# TODO konfidens
+
 pg <- mvspec(detrended, log="no")
 
-k = kernel("modified.daniell", c(3,3))
-pg <- mvspec(soi, kernel=k, taper=.1, log="no")
+k = kernel("daniell", c(1,1))
+pg <- mvspec(detrended, kernel=k, log="no")
 
 max_index <- which(pg$spec == max(pg$spec))
 freq <- pg$freq[max_index]
@@ -189,19 +193,8 @@ max_index2 <- which(pg$spec == max(pg$spec[which(pg$freq < 0.5)]))
 freq <- pg$freq[max_index2]
 
 1/freq
-abline(v=freq, col="red")
 
-max_index3 <- which(pg$spec == max(pg$spec[which(pg$freq > 1.5)]))
-freq <- pg$freq[max_index3]
-
-1/freq
-abline(v=freq, col="green")
-
-max_index4 <- which(pg$spec == max(pg$spec[which(pg$freq > 2.5)]))
-freq <- pg$freq[max_index4]
-
-1/freq
-abline(v=freq, col="yellow")
+spec.ar(detrended)
 ```
 
 
@@ -234,7 +227,9 @@ models <- list(
   # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,1,0), period=52))#,
   # arima(detrended, order=c(3,1,2), seasonal=list(order=c(1,1,0), period=52))#,
   arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,1), period=52)),
-  arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,1), period=52))#,
+  arima(detrended, order=c(3,0,3), seasonal=list(order=c(3,1,3), period=52)),
+  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,1), period=52))#,
+  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,2), period=52))#,
   # arima(detrended, order=c(3,1,2), seasonal=list(order=c(2,1,1), period=52))
 )
 
