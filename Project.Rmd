@@ -6,16 +6,14 @@ output:
   pdf_document: default
   html_document: default
 ---
-
-# Questions
-- What to do with missing values? Skip them? Linear interpolate?
-- What to do with residuals?
-
-- Is it stationary? / should some other trend be removed?
-- (P)ACF indicating AR(2)? Why no spike at lag 1?
-
 # TODO
-- Note that higher order polynomial regressions in t or nonparametric smoothing (linear filtering) could be used in cases where the trend is nonlinear.
+- Long freq = smooth, variance long period
+- Kommentera stora residualer? datum?
+- Log: större skillnad större värden, plotta
+- Periodogram residualer
+- Model selection
+- Prediction på known värden
+- Tillbaka trend på pred
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -26,6 +24,7 @@ library(astsa)
 library(imputeTS)
 library(rjson)
 library(forecast)
+library(tseries)
 
 data <- fromJSON(file = "./mammoth.json")
 plot(data$depth, type="o")
@@ -102,6 +101,12 @@ data <- data.frame(
 plot(data$depth, type="o")
 ```
 
+# Missing values
+```{r}
+data$depth[which(is.na(data$depth))] <- 0
+```
+
+
 ```{r}
 series <- ts(
   data$depth,
@@ -119,51 +124,11 @@ acf(na_interpolation(series, option = "linear"), lag.max = 52 * 2)
 pacf(na_interpolation(series, option = "linear"), lag.max = 52 * 2)
 ```
 
-# Detrend
 ```{r}
-lin.mod <- lm(series ~ time(series))
-summary(lin.mod)
-
-plot(series)
-lines(series*0 + predict(lin.mod, time(series)), type="l", col="red")
-
-detrended <- series - predict(lin.mod, time(series))
-
-plot(detrended)
-```
-
-```{r}
-sum(is.na(data$depth) / length(data$depth))
-
-(tab <- table(as.numeric(format.Date(data$date, "%m")), is.na(data$depth)))
-
-plot(tab[, 1] / (tab[, 1] + tab[, 2]), type="o")
-
-
-plot(detrended)
-detrended <- na_interpolation(detrended, option = "linear")
-plot(detrended)
-```
-
-```{r}
-plot(diff(detrended))
-plot(diff(detrended, differences = 2))
-acf(diff(detrended), lag.max = 52 * 2)
-pacf(diff(detrended), lag.max = 52 * 2)
-```
-
-
-# Periodogram
-
-```{r}
-# TODO konfidens
-
-pg <- mvspec(detrended, log="no")
-
-spec.ar(detrended)
+pg <- mvspec(series, log="no")
 
 k = kernel("daniell", c(1,1))
-pg <- mvspec(detrended, kernel=k, log="no")
+pg <- mvspec(series, kernel=k, log="no")
 
 l <- 1/sum(k$coef^2)
 
@@ -192,6 +157,126 @@ segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="red")
 # abline(v=freq, col="red")
 ```
 
+# Detrend
+```{r}
+# lin.mod <- lm(series ~ time(series))
+# summary(lin.mod)
+# 
+# plot(series)
+# lines(series*0 + predict(lin.mod, time(series)), type="l", col="red")
+# 
+# detrended <- series - predict(lin.mod, time(series))
+# 
+# plot(detrended)
+
+```
+
+```{r}
+
+# periods <- as.numeric(format(data$date, "%V"))
+periods <- as.numeric(format(data$date, "%m"))
+
+agg <- aggregate(
+  data$depth,
+  by=list(period = periods),
+  FUN=mean
+)
+
+plot(agg$period, agg$x)
+
+detrended <- data$depth - agg$x[match(periods, agg$period)]
+
+plot(data$depth, type="l", ylim=c(-100, 350))
+lines(detrended, type="l", col="red")
+
+detrended <- ts(
+  detrended,
+  start=start(series),
+  end=end(series),
+  frequency=frequency(series)
+)
+plot(detrended)
+```
+
+
+```{r}
+# sum(is.na(data$depth) / length(data$depth))
+# 
+# (tab <- table(as.numeric(format.Date(data$date, "%m")), is.na(data$depth)))
+# 
+# plot(tab[, 1] / (tab[, 1] + tab[, 2]), type="o")
+# 
+# 
+# plot(detrended)
+# detrended <- na_interpolation(detrended, option = "linear")
+# plot(detrended)
+```
+
+```{r}
+plot(diff(detrended))
+plot(diff(detrended, differences = 2))
+acf(diff(detrended), lag.max = 52 * 2)
+pacf(diff(detrended), lag.max = 52 * 2)
+
+adf.test(detrended)
+```
+
+
+# Periodogram
+
+```{r}
+# TODO konfidens
+
+pg <- mvspec(detrended, log="no")
+
+k = kernel("daniell", c(1,1))
+pg <- mvspec(detrended, kernel=k, log="no")
+
+l <- 1/sum(k$coef^2)
+
+alpha <- 0.05
+U = qchisq(alpha/2, 2*l)
+L = qchisq(1-alpha/2, 2*l)
+
+max_index <- which(pg$spec == max(pg$spec))
+freq <- pg$freq[max_index]
+
+1/freq
+conf <- l*c(2*pg$spec[max_index]/L,2*pg$spec[max_index]/U)
+segments(x0=freq,y0=conf[1],x1=freq,y1=conf[2],col="blue")
+segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="blue")
+
+# abline(v=freq, col="blue")
+
+
+max_index2 <- which(pg$spec == max(pg$spec[which(pg$freq > 4)]))
+freq <- pg$freq[max_index2]
+
+1/freq
+conf <- l*c(2*pg$spec[max_index2]/L,2*pg$spec[max_index2]/U)
+segments(x0=freq,y0=conf[1],x1=freq,y1=conf[2],col="red")
+segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="red")
+# abline(v=freq, col="red")
+```
+
+```{r}
+pg <- spec.ar(detrended)
+
+max_index <- which(pg$spec == max(pg$spec))
+freq <- pg$freq[max_index]
+
+1/freq
+abline(v=freq,col="blue")
+
+
+max_index2 <- which(pg$spec == max(pg$spec[which(pg$freq > 3)]))
+freq <- pg$freq[max_index2]
+
+1/freq
+abline(v=freq,col="red")
+```
+
+
 
 # ACF
 ```{r}
@@ -213,19 +298,23 @@ pacf(detrended, lag.max = 52 * 2)
 # sigma^2 estimated as 148.9:  log likelihood=-1489.99
 # AIC=2989.98   AICc=2990.14   BIC=3009.65
 
-sarima(detrended, 2,0,1, 1,1,0, 1)
+# sarima(detrended, 2,0,1, 1,1,0, 1)
+# sarima(detrended, 2,0,1, 1,1,1, 1)
 sarima(detrended, 2,0,1, 1,1,1, 1)
 ```
+
 ```{r}
 models <- list(
   arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52)),
   # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,1,0), period=52))#,
   # arima(detrended, order=c(3,1,2), seasonal=list(order=c(1,1,0), period=52))#,
-  arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,1), period=52))#,
+  arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,1), period=52)),
   # arima(detrended, order=c(3,0,3), seasonal=list(order=c(3,1,3), period=52))
   # arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,1), period=52))#,
   # arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,2), period=52))#,
-  # arima(detrended, order=c(3,1,2), seasonal=list(order=c(2,1,1), period=52))
+  # arima(detrended, order=c(3,1,2), seasonal=list(order=c(2,1,1), period=52)),
+  arima(detrended, order=c(5,1,2)),
+  arima(detrended, order=c(3,0,1), seasonal=list(order=c(1,0,0), period=52))
 )
 
 models
@@ -238,7 +327,7 @@ lapply(models, function(x) {
 
 
 ```{r}
-best_model <- models[[2]]
+best_model <- models[[1]]
 
 weeks_ahead <- 52
 fore <- predict(best_model, n.ahead= weeks_ahead)
@@ -266,12 +355,3 @@ for (y in 0:8) {
 
 
 ```
-
-
-# Show residuals and measure of how well fit
-
-# Comment on fitted model
-
-# Estimate the spectral density using the periodogram and smoothed periodogram. 
-
-# Comment on any clear cycles and the overall distribution of the variance by frequency, and its relationship to the smoothness of your time series
