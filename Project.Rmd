@@ -27,7 +27,7 @@ library(forecast)
 library(tseries)
 
 data <- fromJSON(file = "./mammoth.json")
-plot(data$depth, type="o")
+plot(data$depth, type="o", main="Raw data", ylab="Snow depth (in)")
 ```
 
 ```{r}
@@ -104,8 +104,12 @@ plot(data$depth, type="o")
 # Missing values
 ```{r}
 data$depth[which(is.na(data$depth))] <- 0
-```
 
+(tab <- table(as.numeric(format.Date(data$date, "%m")), data$depth == 0))
+
+month.labels <- format(ISOdatetime(2000,1:12,1,0,0,0),"%b")
+barplot(tab[, 1] / (tab[, 1] + tab[, 2]), names.arg = month.labels, ylab="% available data", main="Available data by month")
+```
 
 ```{r}
 series <- ts(
@@ -114,14 +118,17 @@ series <- ts(
   # end=c(as.numeric(format(data$date[length(data$date)], "%Y")), as.numeric(format(data$date[length(data$date)], "%U"))),
   frequency=365.25/7
 )
-plot(series)
+plot(series, main="Cleaned data", ylab="Snow depth (in)")
 ```
 
 
 # ACF
 ```{r}
-acf(na_interpolation(series, option = "linear"), lag.max = 52 * 2)
-pacf(na_interpolation(series, option = "linear"), lag.max = 52 * 2)
+# acf(na_interpolation(series, option = "linear"), lag.max = 52 * 2)
+# pacf(na_interpolation(series, option = "linear"), lag.max = 52 * 2)
+
+acf(series, lag.max = 52 * 2)
+pacf(series, lag.max = 52 * 2)
 ```
 
 ```{r}
@@ -159,43 +166,45 @@ segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="red")
 
 # Detrend
 ```{r}
-# lin.mod <- lm(series ~ time(series))
-# summary(lin.mod)
-# 
-# plot(series)
-# lines(series*0 + predict(lin.mod, time(series)), type="l", col="red")
-# 
-# detrended <- series - predict(lin.mod, time(series))
-# 
-# plot(detrended)
+lin.mod <- lm(series ~ time(series))
+summary(lin.mod)
+
+plot(series)
+lines(series*0 + predict(lin.mod, time(series)), type="l", col="red")
+
+detrended <- series - predict(lin.mod, time(series))
+
+plot(detrended)
 
 ```
 
 ```{r}
 
-# periods <- as.numeric(format(data$date, "%V"))
-periods <- as.numeric(format(data$date, "%m"))
-
-agg <- aggregate(
-  data$depth,
-  by=list(period = periods),
-  FUN=mean
-)
-
-plot(agg$period, agg$x)
-
-detrended <- data$depth - agg$x[match(periods, agg$period)]
-
-plot(data$depth, type="l", ylim=c(-100, 350))
-lines(detrended, type="l", col="red")
-
-detrended <- ts(
-  detrended,
-  start=start(series),
-  end=end(series),
-  frequency=frequency(series)
-)
-plot(detrended)
+# # periods <- as.numeric(format(data$date, "%V"))
+# periods <- as.numeric(format(data$date, "%m"))
+# 
+# agg <- aggregate(
+#   data$depth,
+#   by=list(period = periods),
+#   FUN=mean
+# )
+# 
+# plot(agg$x, main="Monthly average snow depth", xaxt ="n", type="o", ylab="Snow depth (in)", xlab="")
+# axis(1, at=1:12, labels=month.labels)
+# 
+# 
+# detrended <- data$depth - agg$x[match(periods, agg$period)]
+# 
+# plot(data$depth, type="l", ylim=c(-100, 350))
+# lines(detrended, type="l", col="red")
+# 
+# detrended <- ts(
+#   detrended,
+#   start=start(series),
+#   end=end(series),
+#   frequency=frequency(series)
+# )
+# plot(detrended, ylab="Snow depth (in)", main="Monthly average snow depth, detrended")
 ```
 
 
@@ -298,23 +307,52 @@ pacf(detrended, lag.max = 52 * 2)
 # sigma^2 estimated as 148.9:  log likelihood=-1489.99
 # AIC=2989.98   AICc=2990.14   BIC=3009.65
 
-# sarima(detrended, 2,0,1, 1,1,0, 1)
+sarima(detrended, 2,0,1, 1,1,0, 1)
 # sarima(detrended, 2,0,1, 1,1,1, 1)
-sarima(detrended, 2,0,1, 1,1,1, 1)
+
+
+## OFF PEAKS
+# Best model: ARIMA(2,1,2)(1,0,0)[52]                    
+# 
+# Series: detrended 
+# ARIMA(2,1,2)(1,0,0)[52] 
+# 
+# Coefficients:
+#          ar1     ar2     ma1      ma2    sar1
+#       0.0308  0.5816  -0.082  -0.4565  0.4746
+# s.e.  0.1869  0.1543   0.202   0.1653  0.0445
+# 
+# sigma^2 estimated as 265.3:  log likelihood=-1814.17
+# AIC=3640.35   AICc=3640.54   BIC=3664.73
+
+sarima(detrended, 2,1,2, 1,0,1, 1)
+sarima(detrended, 2,1,2, 1,1,0, 1)
 ```
 
 ```{r}
 models <- list(
-  arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52)),
+  arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52))#,
+  
+  # arima(detrended, order=c(2,1,2), seasonal=list(order=c(1,0,1), period=52)),
+  # # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,1,0), period=52))#,
+  # # arima(detrended, order=c(3,1,2), seasonal=list(order=c(1,1,0), period=52))#,
+  # # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,1), period=52)),
+  # # arima(detrended, order=c(3,0,3), seasonal=list(order=c(3,1,3), period=52))
+  # # arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,1), period=52))#,
+  # # arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,2), period=52))#,
+  # # arima(detrended, order=c(3,1,2), seasonal=list(order=c(2,1,1), period=52)),
+  # # arima(detrended, order=c(5,1,2)),
+  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,0,0), period=52)),
+  # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,0,0), period=52)),
+  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(2,0,0), period=52)),
+  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52)),
+  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,1), period=52)),
+  
   # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,1,0), period=52))#,
-  # arima(detrended, order=c(3,1,2), seasonal=list(order=c(1,1,0), period=52))#,
-  arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,1), period=52)),
-  # arima(detrended, order=c(3,0,3), seasonal=list(order=c(3,1,3), period=52))
-  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,1), period=52))#,
-  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,2), period=52))#,
-  # arima(detrended, order=c(3,1,2), seasonal=list(order=c(2,1,1), period=52)),
-  arima(detrended, order=c(5,1,2)),
-  arima(detrended, order=c(3,0,1), seasonal=list(order=c(1,0,0), period=52))
+  
+  # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,0,1), period=52))#,
+  # arima(detrended, order=c(5,0,5), seasonal=list(order=c(5,0,5), period=52)),
+  # arima(detrended, order=c(5,0,5), seasonal=list(order=c(5,0,5), period=52)),
 )
 
 models
