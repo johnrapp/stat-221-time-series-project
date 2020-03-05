@@ -7,13 +7,14 @@ output:
   html_document: default
 ---
 # TODO
-- Long freq = smooth, variance long period
+- Prediction på known värden
+- Tillbaka trend på pred
+
 - Kommentera stora residualer? datum?
 - Log: större skillnad större värden, plotta
 - Periodogram residualer
-- Model selection
-- Prediction på known värden
-- Tillbaka trend på pred
+- Tapering
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -129,6 +130,16 @@ plot(series, main="Cleaned data", ylab="Snow depth (in)")
 
 acf(series, lag.max = 52 * 2)
 pacf(series, lag.max = 52 * 2)
+
+```
+
+```{r}
+plot(diff(series), main="First difference")
+plot(diff(series, differences = 2))
+acf(diff(series), lag.max = 52 * 2)
+pacf(diff(series), lag.max = 52 * 2)
+
+adf.test(series)
 ```
 
 ```{r}
@@ -166,45 +177,44 @@ segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="red")
 
 # Detrend
 ```{r}
-lin.mod <- lm(series ~ time(series))
-summary(lin.mod)
-
-plot(series)
-lines(series*0 + predict(lin.mod, time(series)), type="l", col="red")
-
-detrended <- series - predict(lin.mod, time(series))
-
-plot(detrended)
-
+# lin.mod <- lm(series ~ time(series))
+# summary(lin.mod)
+# 
+# plot(series)
+# lines(series*0 + predict(lin.mod, time(series)), type="l", col="red")
+# 
+# detrended <- series - predict(lin.mod, time(series))
+# 
+# plot(detrended)
 ```
 
 ```{r}
 
-# # periods <- as.numeric(format(data$date, "%V"))
+periods <- as.numeric(format(data$date, "%V"))
 # periods <- as.numeric(format(data$date, "%m"))
-# 
-# agg <- aggregate(
-#   data$depth,
-#   by=list(period = periods),
-#   FUN=mean
-# )
-# 
-# plot(agg$x, main="Monthly average snow depth", xaxt ="n", type="o", ylab="Snow depth (in)", xlab="")
-# axis(1, at=1:12, labels=month.labels)
-# 
-# 
-# detrended <- data$depth - agg$x[match(periods, agg$period)]
-# 
-# plot(data$depth, type="l", ylim=c(-100, 350))
-# lines(detrended, type="l", col="red")
-# 
-# detrended <- ts(
-#   detrended,
-#   start=start(series),
-#   end=end(series),
-#   frequency=frequency(series)
-# )
-# plot(detrended, ylab="Snow depth (in)", main="Monthly average snow depth, detrended")
+
+agg <- aggregate(
+  data$depth,
+  by=list(period = periods),
+  FUN=mean
+)
+
+plot(agg$x, main="Monthly average snow depth", xaxt ="n", type="o", ylab="Snow depth (in)", xlab="")
+axis(1, at=1:12, labels=month.labels)
+
+
+detrended <- data$depth - agg$x[match(periods, agg$period)]
+
+plot(data$depth, type="l", ylim=c(-100, 350))
+lines(detrended, type="l", col="red")
+
+detrended <- ts(
+  detrended,
+  start=start(series),
+  end=end(series),
+  frequency=frequency(series)
+)
+plot(detrended, ylab="Snow depth (in)", main="Monthly average snow depth, detrended")
 ```
 
 
@@ -222,7 +232,7 @@ plot(detrended)
 ```
 
 ```{r}
-plot(diff(detrended))
+plot(diff(detrended), main="First difference")
 plot(diff(detrended, differences = 2))
 acf(diff(detrended), lag.max = 52 * 2)
 pacf(diff(detrended), lag.max = 52 * 2)
@@ -236,7 +246,7 @@ adf.test(detrended)
 ```{r}
 # TODO konfidens
 
-pg <- mvspec(detrended, log="no")
+# pg <- mvspec(detrended, log="no")
 
 k = kernel("daniell", c(1,1))
 pg <- mvspec(detrended, kernel=k, log="no")
@@ -258,8 +268,8 @@ segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="blue")
 # abline(v=freq, col="blue")
 
 
-max_index2 <- which(pg$spec == max(pg$spec[which(pg$freq > 4)]))
-freq <- pg$freq[max_index2]
+max_index2 <- which(pg$spec == max(pg$spec[which(abs(pg$freq - 1) == min(abs(pg$freq - 1)))]))
+freq <- 1
 
 1/freq
 conf <- l*c(2*pg$spec[max_index2]/L,2*pg$spec[max_index2]/U)
@@ -289,8 +299,8 @@ abline(v=freq,col="red")
 
 # ACF
 ```{r}
-acf(detrended, lag.max = 52 * 2)
-pacf(detrended, lag.max = 52 * 2)
+acf(detrended, lag.max = 52 * 2, main="acf")
+pacf(detrended, lag.max = 52 * 2, main="pacf")
 ```
 
 # Fit ARIMA
@@ -307,7 +317,7 @@ pacf(detrended, lag.max = 52 * 2)
 # sigma^2 estimated as 148.9:  log likelihood=-1489.99
 # AIC=2989.98   AICc=2990.14   BIC=3009.65
 
-sarima(detrended, 2,0,1, 1,1,0, 1)
+# sarima(detrended, 2,0,1, 1,1,0, 1)
 # sarima(detrended, 2,0,1, 1,1,1, 1)
 
 
@@ -325,8 +335,10 @@ sarima(detrended, 2,0,1, 1,1,0, 1)
 # sigma^2 estimated as 265.3:  log likelihood=-1814.17
 # AIC=3640.35   AICc=3640.54   BIC=3664.73
 
-sarima(detrended, 2,1,2, 1,0,1, 1)
-sarima(detrended, 2,1,2, 1,1,0, 1)
+# sarima(detrended, 2,1,2, 1,0,1, 1)
+# sarima(detrended, 2,1,2, 1,1,0, 1)
+
+# sarima(detrended, 1,1,1)
 ```
 
 ```{r}
@@ -348,7 +360,9 @@ models <- list(
   # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52)),
   # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,1), period=52)),
   
-  # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,1,0), period=52))#,
+  # arima(detrended, order=c(2,1,2), seasonal=list(order=c(1,1,0), period=52))#,
+  
+  # arima(detrended, order=c(1,1,1))#,
   
   # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,0,1), period=52))#,
   # arima(detrended, order=c(5,0,5), seasonal=list(order=c(5,0,5), period=52)),
@@ -373,13 +387,13 @@ fore <- predict(best_model, n.ahead= weeks_ahead)
 first_date <- time(series)[1]
 last_date <- time(series)[length(time(series))]
 
-ts.plot(detrended, fore$pred, col=1:2, xlim=c(last_date - 52 / 52, last_date + weeks_ahead / 52), ylab="Forecast")
+ts.plot(detrended, xlim=c(last_date - 52 / 52, last_date + weeks_ahead / 52), ylab="Snow depth (in)", main="Snow depth forecast")
 U = fore$pred+fore$se; L = fore$pred-fore$se
 xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
 polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
-lines(fore$pred, type="p", col=2)
+lines(fore$pred, type="o", col=2)
 
-ts.plot(detrended, fore$pred, col=1:2, xlim=c(first_date,last_date + weeks_ahead / 52), ylab="Forecast")
+ts.plot(detrended, fore$pred, col=1:2, xlim=c(first_date,last_date + weeks_ahead / 52), ylab="Snow depth (in)", main="Snow depth forecast")
 
 U = fore$pred+fore$se; L = fore$pred-fore$se
 xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
@@ -390,6 +404,33 @@ lines(fore$pred, type="p", col=2)
 for (y in 0:8) {
   abline(v = last_date - y, lty="dashed", col="gray")
 }
+```
 
+```{r}
+weeks_omit <- 10
+
+ommitted_series <- subset(detrended, start=1, end=length(detrended) - weeks_omit)
+# best_model <- arima(ommitted_series, order=c(1,1,1))
+best_model <- arima(ommitted_series, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52))
+
+
+# plot(detrended, type="l")
+
+weeks_ahead <- 52
+fore <- predict(best_model, n.ahead= weeks_ahead)
+
+first_date <- time(series)[1]
+last_date <- time(series)[length(time(series))]
+
+ts.plot(ommitted_series, xlim=c(last_date - 52 / 52, last_date + weeks_ahead / 52), ylab="Snow depth (in)", main="Snow depth forecast")
+U = fore$pred+fore$se; L = fore$pred-fore$se
+xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
+polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
+lines(fore$pred, type="o", col=2)
+lines(detrended, lt="dashed",col=1)
+
+
+# arima(detrended, order=c(1,1,1))
 
 ```
+
