@@ -199,7 +199,7 @@ agg <- aggregate(
   FUN=mean
 )
 
-plot(agg$x, main="Monthly average snow depth", xaxt ="n", type="o", ylab="Snow depth (in)", xlab="")
+plot(agg$x, main="Weekly average snow depth", xaxt ="n", type="o", ylab="Snow depth (in)", xlab="")
 axis(1, at=1:12, labels=month.labels)
 
 
@@ -214,7 +214,7 @@ detrended <- ts(
   end=end(series),
   frequency=frequency(series)
 )
-plot(detrended, ylab="Snow depth (in)", main="Monthly average snow depth, detrended")
+plot(detrended, ylab="Snow depth (in)", main="Weekly average snow depth, detrended")
 ```
 
 
@@ -338,12 +338,12 @@ pacf(detrended, lag.max = 52 * 2, main="pacf")
 # sarima(detrended, 2,1,2, 1,0,1, 1)
 # sarima(detrended, 2,1,2, 1,1,0, 1)
 
-# sarima(detrended, 1,1,1)
+sarima(detrended, 1,1,1)
 ```
 
 ```{r}
 models <- list(
-  arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52))#,
+  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52))#,
   
   # arima(detrended, order=c(2,1,2), seasonal=list(order=c(1,0,1), period=52)),
   # # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,1,0), period=52))#,
@@ -362,7 +362,7 @@ models <- list(
   
   # arima(detrended, order=c(2,1,2), seasonal=list(order=c(1,1,0), period=52))#,
   
-  # arima(detrended, order=c(1,1,1))#,
+  arima(detrended, order=c(1,1,1))#,
   
   # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,0,1), period=52))#,
   # arima(detrended, order=c(5,0,5), seasonal=list(order=c(5,0,5), period=52)),
@@ -407,11 +407,11 @@ for (y in 0:8) {
 ```
 
 ```{r}
-weeks_omit <- 10
+weeks_omit <- 5
 
 ommitted_series <- subset(detrended, start=1, end=length(detrended) - weeks_omit)
-# best_model <- arima(ommitted_series, order=c(1,1,1))
-best_model <- arima(ommitted_series, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52))
+best_model <- arima(ommitted_series, order=c(1,1,1))
+# best_model <- arima(ommitted_series, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52))
 
 
 # plot(detrended, type="l")
