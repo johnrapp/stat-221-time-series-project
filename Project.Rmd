@@ -235,6 +235,18 @@ segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="red")
 ```
 
 ```{r}
+# lin.mod <- lm(series ~ time(series))
+# summary(lin.mod)
+# 
+# plot(series)
+# lines(series*0 + predict(lin.mod, time(series)), type="l", col="red")
+# 
+# detrended <- series - predict(lin.mod, time(series))
+# 
+# plot(detrended)
+```
+
+```{r}
 
 periods <- as.numeric(format(data$date, "%V"))
 # periods <- as.numeric(format(data$date, "%m"))
