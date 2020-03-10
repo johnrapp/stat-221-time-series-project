@@ -1,12 +1,14 @@
 ---
-title: "STAT 221 Project"
+title: "STAT 221 Final Project - Mammoth Snow Depth"
 author: "John Rapp Farnes | 405461225"
-date: "3/5 2020"
+date: "3/17 2020"
 output:
-  pdf_document: default
-  html_document: default
+  pdf_document:
+    toc: true
+    number_section: true
 ---
-# TODO
+
+% TODO
 - Prediction på known värden
 - Tillbaka trend på pred
 
@@ -16,22 +18,83 @@ output:
 - Tapering
 
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include = F}
+knitr::opts_chunk$set(echo = F)
 ```
 
-```{r}
+# Introduction
+
+## Background
+
+Mammoth is a mountain in Northern California know for its great alpine ski and snowboarding conditions. For this purpose, the mountain features a ski resort with the same name. This resort has has more than 3,500 acres of ski-able terrain and is serviced by 28 lifts and recieves over 1 million anuual visitors. For Southern Californian residents, the mountain is of interest as it is one of the closest "good" ski resorts, about a 4-6 hour drive away from Los Angeles. \ref{mammoth_about}
+
+As people familiar with alpine sports know, one of the most important conditions for the sport is the snow depth at the mountain, as this affects which runs are open and how "good" the skiing is. As such, the purpose of this report is to **model the weekly snow depth at Mammoth mountain in order to make predictions on future skiing conditions**.
+
+## Data set
+Data on historic snow depth at Mammoth were obtained from the reporting of Mammoth Mountain Ski Area, through a third party website \ref{mammoth_data}. The website does not give the data easily in a downloadable form, hence the data was obtained through injecting JavaScript into a browser client that took the data from the browser JavaScript enviroment and printed it in a PDF format. This raw data is shown in figure \ref{fig:raw_data}, featuring 1791 recordings from 2011-12-01
+through 2020-03-02 of daily snow depth measured in incehs. Opon looking at the graph, two issues with the raw data are found: 1) The dates in the off-season (outside of the winter months) are not included, rather the years are concatinated together in a single time-frame 2) some values within the recorded period are missing and reported as 0. Hence, the data needed to be cleaned.
+
+## Cleaning data
+The first step in cleaning the data was to include the missing dates in order to capture the full time-frame of the data. The next step was handling the missing values, both in the off-season as well as the missing recorded values. In order to handle the missing recorded values, as well as to make lower variance predictions on snow depth further in the future than a couple of days, the data was aggregated and averaged (disregarding the missing values) per week, creating a weekly time series. This week was defined as starting a Saturday, as this a day of interest for many weekend skieers. The off-season missing values were replaced by 0s, as this is an accurate description of the snow depth during those months -- there rarely is not snow on Mammoth during the summer. The resulting data after cleaning is shown in figure \ref{fig:cleaned}, featuring 431 weeks. The availability of data per month is displayed in \ref{fig:availability}, showing that data exists for the most part Dec-May, with less than 50% Jun-Oct, reaching ~80% in November.
+
+# Analyis
+Looking at the grapth, it is clear that the ski season of 2020 has a far greater snow depth than prior years, an unfortunate fact for skiiers this season. To study other properties than this obvious observation, time-series methods were applied.
+
+## Series properties
+First, the properties of the time-series were studies. Figure ref{fig:acf_series} shows the ACF and PACF of the series, where the ACF shows periodic behaviour with length 1 year that tails off, and the PACF has 2 (barely) significant values and then cuts off, implying that a seasonal AR model may be a good description of the series. The 1 year period is easily seen also in the periodogram (figure ref{fig:period_series}), together with a 4 year period, both significant peaks. The 4 year period may be an artifact of the data being recorded for 4 years and these years having a pattern of yearly depth by  chance.
+
+The data does not appear to be stationary as it has an obvious yearly trend, and ARIMA models can not be applied. Hence the data must first be detrended.
+
+## Detrending
+
+## Detrended series properties
+
+## Model fitting
+
+## Model interpretation
+
+## Model evaluation
+
+### Residual analysis
+
+## Frequency domain
+
+## Alternative model
+
+# Results
+
+## Conclusion
+
+## Dicsussion
+
+## Next steps
+
+# Appendix - Figures and graphs
+
+# References
+
+1. https://www.mammothmountain.com/ 
+
+
+
+
+```{r include=F}
 library(astsa)
 library(imputeTS)
 library(rjson)
 library(forecast)
 library(tseries)
 
+```
+
+```{r fig.cap="\\label{fig:raw_data}Raw Mammoth snow depth data"}
+# Read and plot raw data
 data <- fromJSON(file = "./mammoth.json")
 plot(data$depth, type="o", main="Raw data", ylab="Snow depth (in)")
 ```
 
-```{r}
+```{r, include=F}
+#Fill in missing days
 data$dates <- as.Date(data$dates, "%Y-%m-%d")
 
 all_dates <- seq(data$dates[1], data$dates[length(data$dates)], by = "day")
@@ -45,14 +108,13 @@ for (date in intersect(data$dates, all_dates)) {
 }
 ```
 
-```{r}
+```{r, include=F}
 table(as.numeric(format.Date(data$date, "%m")), data$depth == 0)
 
 all_depths[which(all_depths == 0)] <- NA
 ```
 
-```{r}
-
+```{r, include=F}
 data <- data.frame(date = all_dates, depth = all_depths)
 
 nrow(data)
@@ -60,13 +122,13 @@ nrow(data)
 plot(data, type="o")
 ```
 
-```{r}
+```{r, include=F}
 (tab <- table(as.numeric(format.Date(data$date, "%m")), is.na(data$depth)))
 
 plot(tab[, 1] / (tab[, 1] + tab[, 2]), type="o")
 ```
 
-```{r}
+```{r, include=F}
 
 mean_ignore_na <- function(x) {
   non_na <- x[which(!is.na(x))]
@@ -102,17 +164,11 @@ data <- data.frame(
 plot(data$depth, type="o")
 ```
 
-# Missing values
 ```{r}
 data$depth[which(is.na(data$depth))] <- 0
-
-(tab <- table(as.numeric(format.Date(data$date, "%m")), data$depth == 0))
-
-month.labels <- format(ISOdatetime(2000,1:12,1,0,0,0),"%b")
-barplot(tab[, 1] / (tab[, 1] + tab[, 2]), names.arg = month.labels, ylab="% available data", main="Available data by month")
 ```
 
-```{r}
+```{r fig.cap="\\label{fig:cleaned}Weekly mammoth snow depth data after cleaning"}
 series <- ts(
   data$depth,
   start=c(as.numeric(format(data$date[1], "%Y")), as.numeric(format(data$date[1], "%U"))),
@@ -121,16 +177,18 @@ series <- ts(
 )
 plot(series, main="Cleaned data", ylab="Snow depth (in)")
 ```
+```{r, fig.cap="\\label{fig:availability}Percent of weeks where data was available, per month"}
+tab <- table(as.numeric(format.Date(data$date, "%m")), data$depth == 0)
+
+month.labels <- format(ISOdatetime(2000,1:12,1,0,0,0),"%b")
+barplot(tab[, 1] / (tab[, 1] + tab[, 2]), names.arg = month.labels, ylab="% available data", main="Available data by month")
+```
 
 
-# ACF
-```{r}
-# acf(na_interpolation(series, option = "linear"), lag.max = 52 * 2)
-# pacf(na_interpolation(series, option = "linear"), lag.max = 52 * 2)
-
-acf(series, lag.max = 52 * 2)
-pacf(series, lag.max = 52 * 2)
-
+```{r, fig.cap="\\label{fig:acf_series}ACF and PACF for the cleaned time-series"}
+par(mfrow=c(2,1))
+plot(acf(series, lag.max = 52 * 2, plot = F), ylim=c(-1,1), xlim=c(0.1,2), main="acf")
+plot(pacf(series, lag.max = 52 * 2, plot = F), ylim=c(-1,1), xlim=c(0.1,2), main="pacf")
 ```
 
 ```{r}
@@ -142,7 +200,8 @@ pacf(diff(series), lag.max = 52 * 2)
 adf.test(series)
 ```
 
-```{r}
+```{r, fig.cap="\\label{fig:series_period}"}
+par(mfrow=c(2,1))
 pg <- mvspec(series, log="no")
 
 k = kernel("daniell", c(1,1))
@@ -157,7 +216,7 @@ L = qchisq(1-alpha/2, 2*l)
 max_index <- which(pg$spec == max(pg$spec))
 freq <- pg$freq[max_index]
 
-1/freq
+# 1/freq
 conf <- l*c(2*pg$spec[max_index]/L,2*pg$spec[max_index]/U)
 segments(x0=freq,y0=conf[1],x1=freq,y1=conf[2],col="blue")
 segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="blue")
@@ -168,24 +227,11 @@ segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="blue")
 max_index2 <- which(pg$spec == max(pg$spec[which(pg$freq < 0.5)]))
 freq <- pg$freq[max_index2]
 
-1/freq
+# 1/freq
 conf <- l*c(2*pg$spec[max_index2]/L,2*pg$spec[max_index2]/U)
 segments(x0=freq,y0=conf[1],x1=freq,y1=conf[2],col="red")
 segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="red")
 # abline(v=freq, col="red")
-```
-
-# Detrend
-```{r}
-# lin.mod <- lm(series ~ time(series))
-# summary(lin.mod)
-# 
-# plot(series)
-# lines(series*0 + predict(lin.mod, time(series)), type="l", col="red")
-# 
-# detrended <- series - predict(lin.mod, time(series))
-# 
-# plot(detrended)
 ```
 
 ```{r}
@@ -238,17 +284,17 @@ acf(diff(detrended), lag.max = 52 * 2)
 pacf(diff(detrended), lag.max = 52 * 2)
 
 adf.test(detrended)
+adf.test(diff(detrended))
 ```
 
-
-# Periodogram
 
 ```{r}
 # TODO konfidens
 
 # pg <- mvspec(detrended, log="no")
 
-k = kernel("daniell", c(1,1))
+k = kernel("daniell", c(2,2))
+# pg <- mvspec(diff(detrended), kernel=k, log="no")
 pg <- mvspec(detrended, kernel=k, log="no")
 
 l <- 1/sum(k$coef^2)
@@ -267,15 +313,15 @@ segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="blue")
 
 # abline(v=freq, col="blue")
 
+# 
+# max_index2 <- which(pg$spec == max(pg$spec[which(abs(pg$freq - 1) == min(abs(pg$freq - 1)))]))
+# freq <- 1
+# 
+# 1/freq
+# conf <- l*c(2*pg$spec[max_index2]/L,2*pg$spec[max_index2]/U)
+# segments(x0=freq,y0=conf[1],x1=freq,y1=conf[2],col="red")
+# segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="red")
 
-max_index2 <- which(pg$spec == max(pg$spec[which(abs(pg$freq - 1) == min(abs(pg$freq - 1)))]))
-freq <- 1
-
-1/freq
-conf <- l*c(2*pg$spec[max_index2]/L,2*pg$spec[max_index2]/U)
-segments(x0=freq,y0=conf[1],x1=freq,y1=conf[2],col="red")
-segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="red")
-# abline(v=freq, col="red")
 ```
 
 ```{r}
