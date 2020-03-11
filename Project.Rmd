@@ -194,6 +194,8 @@ plot(pacf(series, lag.max = 52 * 2, plot = F), ylim=c(-1,1), xlim=c(0.1,2), main
 
 ```{r}
 plot(diff(series), main="First difference")
+abline(v=time(series)[which(abs(diff(series))>50)], col="blue")
+
 plot(diff(series, differences = 2))
 acf(diff(series), lag.max = 52 * 2)
 pacf(diff(series), lag.max = 52 * 2)
@@ -373,6 +375,8 @@ plot(detrended, ylab="Snow depth (in)", main="Weekly average snow depth, detrend
 
 ```{r}
 plot(diff(detrended), main="First difference")
+abline(v=time(series)[which(abs(diff(series))>50)], col="blue")
+
 plot(diff(detrended, differences = 2))
 acf(diff(detrended), lag.max = 52 * 2)
 pacf(diff(detrended), lag.max = 52 * 2)
@@ -533,6 +537,8 @@ lines(fore$pred, type="p", col=2)
 
 ```{r}
 plot(best_model$residuals)
+abline(v=time(series)[which(abs(diff(series))>50)], col="blue")
+
 pg <- mvspec(best_model$residuals, log="no")
 
 k = kernel("daniell", c(1,1))
@@ -589,9 +595,6 @@ polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
 
 lines(fore$pred, type="o", col=2)
 lines(detrended, lt="dashed",col=1)
-
-
-# arima(detrended, order=c(1,1,1))
 
 ```
 
