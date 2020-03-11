@@ -28,7 +28,7 @@ knitr::opts_chunk$set(echo = F)
 
 Mammoth is a mountain in Northern California know for its great alpine ski and snowboarding conditions. For this purpose, the mountain features a ski resort with the same name. This resort has has more than 3,500 acres of ski-able terrain and is serviced by 28 lifts and recieves over 1 million anuual visitors. For Southern Californian residents, the mountain is of interest as it is one of the closest "good" ski resorts, about a 4-6 hour drive away from Los Angeles. \ref{mammoth_about}
 
-As people familiar with alpine sports know, one of the most important conditions for the sport is the snow depth at the mountain, as this affects which runs are open and how "good" the skiing is. As such, the purpose of this report is to **model the weekly snow depth at Mammoth mountain in order to make predictions on future skiing conditions**.
+As people familiar with alpine sports know, one of the most important conditions for the sport is the snow depth at the mountain, as this affects which runs are open and how "good" the skiing is. As decisions about travelling to a ski resort generally are done in advance and require some planning (e.g. booking a cabin), being able to predicts future conditions would be useful to the alpine skiier. In addition, the entire ski economy of a mountain such as Mammoth, including the resort, workers as well as restaurants and stores in the sorrounding city, face uncertainty over how many visitors the mountain will get a given week or year as this drives revenue. As visitorships likely is correlated with snow depth, forecasting it would be an important tool also for those stake holders. This paper will attempt to do just that: **model the snow depth at Mammoth mountain in order to make predictions on future skiing conditions and mountain visitorship**.
 
 ## Data set
 Data on historic snow depth at Mammoth were obtained from the reporting of Mammoth Mountain Ski Area, through a third party website \ref{mammoth_data}. The website does not give the data easily in a downloadable form, hence the data was obtained through injecting JavaScript into a browser client that took the data from the browser JavaScript enviroment and printed it in a PDF format. This raw data is shown in figure \ref{fig:raw_data}, featuring 1791 recordings from 2011-12-01
@@ -41,11 +41,12 @@ The first step in cleaning the data was to include the missing dates in order to
 Looking at the grapth, it is clear that the ski season of 2020 has a far greater snow depth than prior years, an unfortunate fact for skiiers this season. To study other properties than this obvious observation, time-series methods were applied.
 
 ## Series properties
-First, the properties of the time-series were studies. Figure ref{fig:acf_series} shows the ACF and PACF of the series, where the ACF shows periodic behaviour with length 1 year that tails off, and the PACF has 2 (barely) significant values and then cuts off, implying that a seasonal AR model may be a good description of the series. The 1 year period is easily seen also in the periodogram (figure ref{fig:period_series}), together with a 4 year period, both significant peaks. The 4 year period may be an artifact of the data being recorded for 4 years and these years having a pattern of yearly depth by  chance.
+First, the properties of the time-series were studies. Figure ref{fig:acf_series} shows the ACF and PACF of the series, where the ACF shows periodic behaviour with length 1 year that tails off, and the PACF has 2 (barely) significant values and then cuts off, implying that a seasonal AR model may be a good description of the series. The 1 year period is easily seen also in the periodogram (figure \ref{fig:period_series}), together with a 4 year period, both significant peaks. The 4 year period may be an artifact of the data being recorded for 4 years and these years having a pattern of yearly depth by  chance.
 
 The data does not appear to be stationary as it has an obvious yearly trend, and ARIMA models can not be applied. Hence the data must first be detrended.
 
 ## Detrending
+The most obvious trend in the data, that must first be removed, is the seasonal trend. This trend can be seen in figure \ref{fig:seasonal} which shows the average snow depth during the differing months of the year. This graph has a clear sinusoidal shape, that peaks in X and reaches its lowest value in Y.
 
 ## Detrended series properties
 
@@ -180,7 +181,7 @@ plot(series, main="Cleaned data", ylab="Snow depth (in)")
 ```{r, fig.cap="\\label{fig:availability}Percent of weeks where data was available, per month"}
 tab <- table(as.numeric(format.Date(data$date, "%m")), data$depth == 0)
 
-month.labels <- format(ISOdatetime(2000,1:12,1,0,0,0),"%b")
+month.labels <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 barplot(tab[, 1] / (tab[, 1] + tab[, 2]), names.arg = month.labels, ylab="% available data", main="Available data by month")
 ```
 
@@ -246,9 +247,10 @@ segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="red")
 # plot(detrended)
 ```
 
-```{r}
+```{r, fig.cap="\\label{seasonal}Average snow depth by week of the year"}
 
 periods <- as.numeric(format(data$date, "%V"))
+# periods <- as.numeric(format(data$date, "%V"))
 # periods <- as.numeric(format(data$date, "%m"))
 
 agg <- aggregate(
@@ -256,8 +258,51 @@ agg <- aggregate(
   by=list(period = periods),
   FUN=mean
 )
+plot(periods, data$depth)
 
-plot(agg$x, main="Weekly average snow depth", xaxt ="n", type="o", ylab="Snow depth (in)", xlab="")
+plot(1:range(periods)[2], agg$x, main="Weekly average snow depth", type="o", ylab="Snow depth (in)", xlab="Week of year")
+
+
+```
+```{r}
+a2 <- aggregate(
+  data$depth,
+  by=list(period = as.numeric(format(data$date, "%Y"))),
+  FUN=max
+)
+
+#plot(periods, data$depth/a2$x[match(as.numeric(format(data$date + 10*6, "%Y")), a2$period)])
+
+depth2 <- data$depth/a2$x[match(as.numeric(format(data$date + 10*4, "%Y")), a2$period)]
+plot(data$date, data$depth, type="l")
+
+plot(data$date, depth2, type="l")
+
+agg3 <- aggregate(
+  depth2,
+  by=list(period = periods),
+  FUN=mean
+)
+
+plot(1:range(periods)[2], agg3$x)
+
+depth3 <- depth2 - agg3$x[match(periods, agg3$period)]
+plot(periods, depth3)
+plot(data$date, depth3, type="l")
+
+depth4 <- depth3[which(depth3 != 0)]
+plot(depth4, type="l")
+mvspec(depth4, log="no")
+
+#k = kernel("daniell", c(1,1))
+# pg <- mvspec(diff(detrended), kernel=k, log="no")
+# pg <- mvspec(depth4, kernel=k, log="no")
+
+# pg <- mvspec(depth4, log="no")
+```
+
+
+```{r}
 axis(1, at=1:12, labels=month.labels)
 
 
@@ -265,6 +310,7 @@ detrended <- data$depth - agg$x[match(periods, agg$period)]
 
 plot(data$depth, type="l", ylim=c(-100, 350))
 lines(detrended, type="l", col="red")
+
 
 detrended <- ts(
   detrended,
