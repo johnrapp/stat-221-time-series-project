@@ -85,7 +85,7 @@ library(imputeTS)
 library(rjson)
 library(forecast)
 library(tseries)
-
+library(pracma)
 ```
 
 ```{r fig.cap="\\label{fig:raw_data}Raw Mammoth snow depth data"}
@@ -206,6 +206,7 @@ par(mfrow=c(2,1))
 pg <- mvspec(series, log="no")
 
 k = kernel("daniell", c(1,1))
+# pg <- mvspec(diff(detrended), kernel=k, log="no")
 pg <- mvspec(series, kernel=k, log="no")
 
 l <- 1/sum(k$coef^2)
@@ -214,25 +215,16 @@ alpha <- 0.05
 U = qchisq(alpha/2, 2*l)
 L = qchisq(1-alpha/2, 2*l)
 
-max_index <- which(pg$spec == max(pg$spec))
-freq <- pg$freq[max_index]
+peaks <- findpeaks(pg$spec, npeaks = 2)[,2]
 
-# 1/freq
-conf <- l*c(2*pg$spec[max_index]/L,2*pg$spec[max_index]/U)
-segments(x0=freq,y0=conf[1],x1=freq,y1=conf[2],col="blue")
-segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="blue")
+1/pg$freq[peaks]
 
-# abline(v=freq, col="blue")
+conf <- list(l = 2*l*pg$spec[peaks]/L, u = 2*l*pg$spec[peaks]/U)
+  
+segments(x0=pg$freq[peaks],y0=conf$l,x1=pg$freq[peaks],y1=conf$u,col="blue")
+segments(x0=pg$freq[peaks]-0.1,y0=conf$l,x1=pg$freq[peaks]+0.1,y1=conf$l,col="blue")
 
-
-max_index2 <- which(pg$spec == max(pg$spec[which(pg$freq < 0.5)]))
-freq <- pg$freq[max_index2]
-
-# 1/freq
-conf <- l*c(2*pg$spec[max_index2]/L,2*pg$spec[max_index2]/U)
-segments(x0=freq,y0=conf[1],x1=freq,y1=conf[2],col="red")
-segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="red")
-# abline(v=freq, col="red")
+plot(pg$freq[peaks])
 ```
 
 ```{r}
@@ -258,41 +250,94 @@ agg <- aggregate(
   by=list(period = periods),
   FUN=mean
 )
-plot(periods, data$depth)
-
 plot(1:range(periods)[2], agg$x, main="Weekly average snow depth", type="o", ylab="Snow depth (in)", xlab="Week of year")
 
+plot(periods, data$depth)
+
+detrended <- data$depth - agg$x[match(periods, agg$period)]
+
+plot(detrended, type="l")
+# lines(detrended, type="l", col="red")
 
 ```
 ```{r}
-a2 <- aggregate(
+
+seasonal_offset <- 10*6
+
+agg_max_season <- aggregate(
   data$depth,
-  by=list(period = as.numeric(format(data$date, "%Y"))),
+  by=list(period = as.numeric(format(data$date + seasonal_offset, "%Y"))),
   FUN=max
 )
 
-#plot(periods, data$depth/a2$x[match(as.numeric(format(data$date + 10*6, "%Y")), a2$period)])
 
-depth2 <- data$depth/a2$x[match(as.numeric(format(data$date + 10*4, "%Y")), a2$period)]
 plot(data$date, data$depth, type="l")
+points(as.Date(paste(agg_max_season$period,"/1/1",sep=""), format="%Y/%m/%d"), agg_max_season$x)
 
-plot(data$date, depth2, type="l")
 
-agg3 <- aggregate(
-  depth2,
-  by=list(period = periods),
+normalized_depth <- data$depth/agg_max_season$x[match(as.numeric(format(data$date + seasonal_offset, "%Y")), agg_max_season$period)]
+normalized_depth <- normalized_depth
+
+plot(data$date, normalized_depth, type="l")
+
+weeks <- as.numeric(format(data$date, "%V"))
+
+agg_mean_week <- aggregate(
+  normalized_depth,
+  by=list(period = weeks),
   FUN=mean
 )
+plot(agg_mean_week$period, agg_mean_week$x)
 
-plot(1:range(periods)[2], agg3$x)
+plot(weeks, normalized_depth)
 
-depth3 <- depth2 - agg3$x[match(periods, agg3$period)]
-plot(periods, depth3)
-plot(data$date, depth3, type="l")
+detrended <- normalized_depth - agg_mean_week$x[match(weeks, agg_mean_week$period)]
+# detrended <- detrended - mean(detrended)
 
-depth4 <- depth3[which(depth3 != 0)]
-plot(depth4, type="l")
-mvspec(depth4, log="no")
+plot(data$date, detrended, type="l")
+
+detrended_collapsed <- detrended
+# detrended_collapsed <- detrended[which(data$depth != 0)]
+plot(detrended_collapsed, type="l")
+
+
+# regr <-list(time=1:278)
+regr <-list(time=time(detrended))
+
+lin.mod <- lm(detrended_collapsed ~ time, data=regr)
+summary(lin.mod)
+
+plot(detrended_collapsed, type="l")
+lines(predict(lin.mod, regr), type="l", col="red")
+
+detrended_collapsed <- detrended_collapsed - predict(lin.mod, regr)
+plot(detrended_collapsed, type="l")
+
+detrended <- detrended_collapsed
+
+
+# depth2 <- data$depth/a2$x[match(as.numeric(format(data$date + 10*4, "%Y")), a2$period)]
+# plot(data$date, data$depth, type="l")
+
+# plot(data$date, depth2, type="l")
+# 
+# agg3 <- aggregate(
+#   depth2,
+#   by=list(period = periods),
+#   FUN=mean
+# )
+# 
+# plot(1:range(periods)[2], agg3$x)
+# 
+# depth3 <- depth2 - agg3$x[match(periods, agg3$period)]
+# plot(periods, depth3)
+# plot(data$date, depth3, type="l")
+# 
+# depth4 <- depth3[which(depth3 != 0)]
+# plot(depth4, type="l")
+# mvspec(depth4, log="no")
+# 
+# detrended <- depth4 - mean(depth4)
 
 #k = kernel("daniell", c(1,1))
 # pg <- mvspec(diff(detrended), kernel=k, log="no")
@@ -303,15 +348,6 @@ mvspec(depth4, log="no")
 
 
 ```{r}
-axis(1, at=1:12, labels=month.labels)
-
-
-detrended <- data$depth - agg$x[match(periods, agg$period)]
-
-plot(data$depth, type="l", ylim=c(-100, 350))
-lines(detrended, type="l", col="red")
-
-
 detrended <- ts(
   detrended,
   start=start(series),
@@ -347,11 +383,9 @@ adf.test(diff(detrended))
 
 
 ```{r}
-# TODO konfidens
+pg <- mvspec(detrended, log="no")
 
-# pg <- mvspec(detrended, log="no")
-
-k = kernel("daniell", c(2,2))
+k = kernel("daniell", c(1,1))
 # pg <- mvspec(diff(detrended), kernel=k, log="no")
 pg <- mvspec(detrended, kernel=k, log="no")
 
@@ -361,42 +395,22 @@ alpha <- 0.05
 U = qchisq(alpha/2, 2*l)
 L = qchisq(1-alpha/2, 2*l)
 
-max_index <- which(pg$spec == max(pg$spec))
-freq <- pg$freq[max_index]
+peaks <- findpeaks(pg$spec, npeaks = 4)[,2]
+# points(pg$freq[peaks], pg$spec[peaks])
 
-1/freq
-conf <- l*c(2*pg$spec[max_index]/L,2*pg$spec[max_index]/U)
-segments(x0=freq,y0=conf[1],x1=freq,y1=conf[2],col="blue")
-segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="blue")
+1/pg$freq[peaks]
 
-# abline(v=freq, col="blue")
+conf <- list(l = 2*l*pg$spec[peaks]/L, u = 2*l*pg$spec[peaks]/U)
+  
+segments(x0=pg$freq[peaks],y0=conf$l,x1=pg$freq[peaks],y1=conf$u,col="blue")
+segments(x0=pg$freq[peaks]-0.1,y0=conf$l,x1=pg$freq[peaks]+0.1,y1=conf$l,col="blue")
 
-# 
-# max_index2 <- which(pg$spec == max(pg$spec[which(abs(pg$freq - 1) == min(abs(pg$freq - 1)))]))
-# freq <- 1
-# 
-# 1/freq
-# conf <- l*c(2*pg$spec[max_index2]/L,2*pg$spec[max_index2]/U)
-# segments(x0=freq,y0=conf[1],x1=freq,y1=conf[2],col="red")
-# segments(x0=freq-0.1,y0=conf[1],x1=freq+0.1,y1=conf[1],col="red")
+plot(pg$freq[peaks])
 
 ```
 
 ```{r}
 pg <- spec.ar(detrended)
-
-max_index <- which(pg$spec == max(pg$spec))
-freq <- pg$freq[max_index]
-
-1/freq
-abline(v=freq,col="blue")
-
-
-max_index2 <- which(pg$spec == max(pg$spec[which(pg$freq > 3)]))
-freq <- pg$freq[max_index2]
-
-1/freq
-abline(v=freq,col="red")
 ```
 
 
@@ -442,7 +456,11 @@ pacf(detrended, lag.max = 52 * 2, main="pacf")
 # sarima(detrended, 2,1,2, 1,0,1, 1)
 # sarima(detrended, 2,1,2, 1,1,0, 1)
 
-sarima(detrended, 1,1,1)
+# sarima(detrended, 1,1,1)
+
+
+sarima(detrended, 2,0,0)
+sarima(detrended, 2,0,1, 0,0,1, 1)
 ```
 
 ```{r}
@@ -464,9 +482,12 @@ models <- list(
   # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52)),
   # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,1), period=52)),
   
-  # arima(detrended, order=c(2,1,2), seasonal=list(order=c(1,1,0), period=52))#,
+  arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,0,1), period=52)),
   
-  arima(detrended, order=c(1,1,1))#,
+  # arima(detrended, order=c(1,1,1))#,
+  arima(detrended, order=c(2,0,0)),
+  arima(detrended, order=c(2,0,2)),
+  arima(detrended, order=c(2,1,2))#,
   
   # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,0,1), period=52))#,
   # arima(detrended, order=c(5,0,5), seasonal=list(order=c(5,0,5), period=52)),
@@ -504,17 +525,47 @@ xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
 
 polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
 lines(fore$pred, type="p", col=2)
-
-for (y in 0:8) {
-  abline(v = last_date - y, lty="dashed", col="gray")
-}
+# 
+# for (y in 0:8) {
+#   abline(v = last_date - y, lty="dashed", col="gray")
+# }
 ```
 
 ```{r}
-weeks_omit <- 5
+plot(best_model$residuals)
+pg <- mvspec(best_model$residuals, log="no")
 
+k = kernel("daniell", c(1,1))
+# pg <- mvspec(diff(detrended), kernel=k, log="no")
+pg <- mvspec(best_model$residuals, kernel=k, log="no")
+
+l <- 1/sum(k$coef^2)
+
+alpha <- 0.05
+U = qchisq(alpha/2, 2*l)
+L = qchisq(1-alpha/2, 2*l)
+
+library(pracma)
+peaks <- findpeaks(pg$spec, npeaks = 20, threshold = 0.00003)[,2]
+# points(pg$freq[peaks], pg$spec[peaks])
+
+1/pg$freq[peaks]
+
+conf <- list(l = 2*l*pg$spec[peaks]/L, u = 2*l*pg$spec[peaks]/U)
+  
+segments(x0=pg$freq[peaks],y0=conf$l,x1=pg$freq[peaks],y1=conf$u,col="blue")
+segments(x0=pg$freq[peaks]-0.1,y0=conf$l,x1=pg$freq[peaks]+0.1,y1=conf$l,col="blue")
+
+plot(pg$freq[peaks])
+```
+
+
+```{r}
+weeks_omit <- 5
 ommitted_series <- subset(detrended, start=1, end=length(detrended) - weeks_omit)
-best_model <- arima(ommitted_series, order=c(1,1,1))
+# best_model <- arima(ommitted_series, order=c(1,1,1))
+# best_model <- arima(ommitted_series, order=c(2,0,1))
+best_model <- arima(ommitted_series, order=c(2,0,1), seasonal=list(order=c(0,0,1), period=52))
 # best_model <- arima(ommitted_series, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52))
 
 
@@ -530,6 +581,12 @@ ts.plot(ommitted_series, xlim=c(last_date - 52 / 52, last_date + weeks_ahead / 5
 U = fore$pred+fore$se; L = fore$pred-fore$se
 xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
 polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
+
+
+U = fore$pred+fore$se * 2; L = fore$pred-fore$se * 2
+xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
+polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
+
 lines(fore$pred, type="o", col=2)
 lines(detrended, lt="dashed",col=1)
 
