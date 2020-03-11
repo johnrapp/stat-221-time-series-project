@@ -9,13 +9,10 @@ output:
 ---
 
 % TODO
-- Prediction på known värden
 - Tillbaka trend på pred
 
-- Kommentera stora residualer? datum?
-- Log: större skillnad större värden, plotta
-- Periodogram residualer
-- Tapering
+- Tapering? Ge periodogram lite kärlek
+- Figurtexter/labels/axes
 
 
 ```{r setup, include = F}
@@ -46,7 +43,11 @@ First, the properties of the time-series were studies. Figure ref{fig:acf_series
 The data does not appear to be stationary as it has an obvious yearly trend, and ARIMA models can not be applied. Hence the data must first be detrended.
 
 ## Detrending
-The most obvious trend in the data, that must first be removed, is the seasonal trend. This trend can be seen in figure \ref{fig:seasonal} which shows the average snow depth during the differing months of the year. This graph has a clear sinusoidal shape, that peaks in X and reaches its lowest value in Y.
+The most obvious trend in the data that may be removed is the 1 year seasonal trend. This trend can be seen in figure \ref{fig:avg_weekly} which shows the average snow depth during the differing weeks of the year. This graph has a clear sinusoidal shape. As such, a first attempt at detrending the data was made by subracting the average of the year to every data point. The result of this may be seen in figure \ref{fig:detrended_week}. Looking at the graph, it does however not appear to be stationary. One artifact of this detrending method is that the different years experience different levels of snow, causing years with less snow to have a clear negative peak and years with more snow to have a positive peak. The snow depth of all years as a function of the week of the year is seen in figure \ref{fig:weekly}, which makes it clear that the snow level is very different each year and that the average hence is not a good predictor.
+
+One way to mitigate this fact is to study values in relation to the peak snow level of the year. If one assumes that the peak value of every year is independent of the other years, and driven by other dynamics, what we should study in order to make accurate predictions of the current year is its divergence from its peak. With this model, forecasting the snow depth of an unknow period would be split into two models, one who predicts the peak snow level of the year given historic values (as we only have 8 observations of this value however the prediction will have high variance), another model can then be used to predict the snow level relative to that year. The second model is the one we are going to develop going forward. Figure \ref{fig:detrended_relative} shows the snow depth relative to the peak value of the season, from this the average of the week of the year of every data point is subtracted to remove seasonality. This model assumes that the dynamics of when and how much it snows is similar year to year. The resulting detrended graph is shown in figure \ref{fig:detrended_before_linear} both with missing values as 0s and with missing dates ommited. The series looks fairly stationary, still having some features. This series however appears to still have an upwards linear trend, as such, the final detrended data is created by removing this linear trend show in figure \ref{fig:detrended}.
+
+As for the missing values, there are multiple ways to handle them, the most obvious being either setting them to 0 or removing those dates from the data. As the lenght of the seasons differ from year to year, removing the off-seasons from the data makes seasonality measures such as the periodogram harder to interpret. As models were fit to both data sets showed similar performance, the one with 0s is kept.
 
 ## Detrended series properties
 
@@ -59,8 +60,6 @@ The most obvious trend in the data, that must first be removed, is the seasonal 
 ### Residual analysis
 
 ## Frequency domain
-
-## Alternative model
 
 # Results
 
@@ -88,7 +87,7 @@ library(tseries)
 library(pracma)
 ```
 
-```{r fig.cap="\\label{fig:raw_data}Raw Mammoth snow depth data"}
+```{r fig.cap="\\label{fig:raw_data}Raw Mammoth snow depth data", fig.height=4}
 # Read and plot raw data
 data <- fromJSON(file = "./mammoth.json")
 plot(data$depth, type="o", main="Raw data", ylab="Snow depth (in)")
@@ -169,7 +168,8 @@ plot(data$depth, type="o")
 data$depth[which(is.na(data$depth))] <- 0
 ```
 
-```{r fig.cap="\\label{fig:cleaned}Weekly mammoth snow depth data after cleaning"}
+
+```{r fig.cap="\\label{fig:raw_data}Raw Mammoth snow depth data", fig.height=4}
 series <- ts(
   data$depth,
   start=c(as.numeric(format(data$date[1], "%Y")), as.numeric(format(data$date[1], "%U"))),
@@ -178,21 +178,23 @@ series <- ts(
 )
 plot(series, main="Cleaned data", ylab="Snow depth (in)")
 ```
-```{r, fig.cap="\\label{fig:availability}Percent of weeks where data was available, per month"}
+
+
+```{r fig.cap="\\label{fig:availability}Percent of weeks where data was available, by month", fig.height=4}
 tab <- table(as.numeric(format.Date(data$date, "%m")), data$depth == 0)
 
-month.labels <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+month.labels <- c("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D")
 barplot(tab[, 1] / (tab[, 1] + tab[, 2]), names.arg = month.labels, ylab="% available data", main="Available data by month")
 ```
 
 
-```{r, fig.cap="\\label{fig:acf_series}ACF and PACF for the cleaned time-series"}
+```{r, fig.cap="\\label{fig:acf_series}ACF and PACF for the cleaned time-series", fig.height=7}
 par(mfrow=c(2,1))
 plot(acf(series, lag.max = 52 * 2, plot = F), ylim=c(-1,1), xlim=c(0.1,2), main="acf")
 plot(pacf(series, lag.max = 52 * 2, plot = F), ylim=c(-1,1), xlim=c(0.1,2), main="pacf")
 ```
 
-```{r}
+```{r, include=F}
 plot(diff(series), main="First difference")
 abline(v=time(series)[which(abs(diff(series))>50)], col="blue")
 
@@ -203,12 +205,12 @@ pacf(diff(series), lag.max = 52 * 2)
 adf.test(series)
 ```
 
-```{r, fig.cap="\\label{fig:series_period}"}
+```{r, fig.cap="\\label{fig:series_period}Periodogram for the cleaned data, peeks at period 1 and 4 years shows with 95% signifance level", fig.height=7}
 par(mfrow=c(2,1))
 pg <- mvspec(series, log="no")
 
 k = kernel("daniell", c(1,1))
-# pg <- mvspec(diff(detrended), kernel=k, log="no")
+
 pg <- mvspec(series, kernel=k, log="no")
 
 l <- 1/sum(k$coef^2)
@@ -219,29 +221,19 @@ L = qchisq(1-alpha/2, 2*l)
 
 peaks <- findpeaks(pg$spec, npeaks = 2)[,2]
 
-1/pg$freq[peaks]
+# 1/pg$freq[peaks]
 
 conf <- list(l = 2*l*pg$spec[peaks]/L, u = 2*l*pg$spec[peaks]/U)
   
 segments(x0=pg$freq[peaks],y0=conf$l,x1=pg$freq[peaks],y1=conf$u,col="blue")
 segments(x0=pg$freq[peaks]-0.1,y0=conf$l,x1=pg$freq[peaks]+0.1,y1=conf$l,col="blue")
 
-plot(pg$freq[peaks])
+# plot(pg$freq[peaks])
 ```
 
-```{r}
-# lin.mod <- lm(series ~ time(series))
-# summary(lin.mod)
-# 
-# plot(series)
-# lines(series*0 + predict(lin.mod, time(series)), type="l", col="red")
-# 
-# detrended <- series - predict(lin.mod, time(series))
-# 
-# plot(detrended)
-```
 
-```{r, fig.cap="\\label{seasonal}Average snow depth by week of the year"}
+
+```{r, fig.cap="\\label{fig:avg_weekly}Average snow depth by week of the year", fig.height=4}
 
 periods <- as.numeric(format(data$date, "%V"))
 # periods <- as.numeric(format(data$date, "%V"))
@@ -253,16 +245,24 @@ agg <- aggregate(
   FUN=mean
 )
 plot(1:range(periods)[2], agg$x, main="Weekly average snow depth", type="o", ylab="Snow depth (in)", xlab="Week of year")
+```
 
-plot(periods, data$depth)
 
+```{r, fig.cap="\\label{fig:detrended_week}Snow depth detrended by subtracting average of week of the year", fig.height=4}
 detrended <- data$depth - agg$x[match(periods, agg$period)]
 
 plot(detrended, type="l")
 # lines(detrended, type="l", col="red")
 
 ```
-```{r}
+
+
+```{r, fig.cap="\\label{fig:weekly}Weekly snow depth of all years", fig.height=4}
+plot(periods, data$depth)
+```
+
+
+```{r, include=F}
 
 seasonal_offset <- 10*6
 
@@ -276,12 +276,22 @@ agg_max_season <- aggregate(
 plot(data$date, data$depth, type="l")
 points(as.Date(paste(agg_max_season$period,"/1/1",sep=""), format="%Y/%m/%d"), agg_max_season$x)
 
+```
 
+
+fig:detrended_collapsed
+fig:detrended
+
+```{r, fig.cap="\\label{fig:detrended_relative}First step of detrending the data, taking the values relative to the peak of the season", fig.height=4}
 normalized_depth <- data$depth/agg_max_season$x[match(as.numeric(format(data$date + seasonal_offset, "%Y")), agg_max_season$period)]
 normalized_depth <- normalized_depth
 
 plot(data$date, normalized_depth, type="l")
 
+```
+
+
+```{r, fig.cap="\\label{fig:detrended_before_linear}First step of detrending the data, taking the values relative to the peak of the season", fig.height=7}
 weeks <- as.numeric(format(data$date, "%V"))
 
 agg_mean_week <- aggregate(
@@ -289,67 +299,35 @@ agg_mean_week <- aggregate(
   by=list(period = weeks),
   FUN=mean
 )
-plot(agg_mean_week$period, agg_mean_week$x)
+# plot(agg_mean_week$period, agg_mean_week$x)
 
-plot(weeks, normalized_depth)
+# plot(weeks, normalized_depth)
 
 detrended <- normalized_depth - agg_mean_week$x[match(weeks, agg_mean_week$period)]
 # detrended <- detrended - mean(detrended)
 
+par(mfrow=c(2,1))
 plot(data$date, detrended, type="l")
-
-detrended_collapsed <- detrended
-# detrended_collapsed <- detrended[which(data$depth != 0)]
+detrended_collapsed <- detrended[which(data$depth != 0)]
 plot(detrended_collapsed, type="l")
+```
 
-
-# regr <-list(time=1:278)
+```{r}
 regr <-list(time=time(detrended))
 
-lin.mod <- lm(detrended_collapsed ~ time, data=regr)
+lin.mod <- lm(detrended ~ time, data=regr)
 summary(lin.mod)
 
-plot(detrended_collapsed, type="l")
-lines(predict(lin.mod, regr), type="l", col="red")
+# plot(detrended, type="l")
+# lines(predict(lin.mod, regr), type="l", col="red")
 
-detrended_collapsed <- detrended_collapsed - predict(lin.mod, regr)
-plot(detrended_collapsed, type="l")
-
-detrended <- detrended_collapsed
-
-
-# depth2 <- data$depth/a2$x[match(as.numeric(format(data$date + 10*4, "%Y")), a2$period)]
-# plot(data$date, data$depth, type="l")
-
-# plot(data$date, depth2, type="l")
-# 
-# agg3 <- aggregate(
-#   depth2,
-#   by=list(period = periods),
-#   FUN=mean
-# )
-# 
-# plot(1:range(periods)[2], agg3$x)
-# 
-# depth3 <- depth2 - agg3$x[match(periods, agg3$period)]
-# plot(periods, depth3)
-# plot(data$date, depth3, type="l")
-# 
-# depth4 <- depth3[which(depth3 != 0)]
-# plot(depth4, type="l")
-# mvspec(depth4, log="no")
-# 
-# detrended <- depth4 - mean(depth4)
-
-#k = kernel("daniell", c(1,1))
-# pg <- mvspec(diff(detrended), kernel=k, log="no")
-# pg <- mvspec(depth4, kernel=k, log="no")
-
-# pg <- mvspec(depth4, log="no")
+detrended <- detrended - predict(lin.mod, regr)
 ```
 
 
-```{r}
+
+```{r, fig.cap="\\label{fig:detrended}Final detrended data", fig.height=4}
+
 detrended <- ts(
   detrended,
   start=start(series),
@@ -359,19 +337,6 @@ detrended <- ts(
 plot(detrended, ylab="Snow depth (in)", main="Weekly average snow depth, detrended")
 ```
 
-
-```{r}
-# sum(is.na(data$depth) / length(data$depth))
-# 
-# (tab <- table(as.numeric(format.Date(data$date, "%m")), is.na(data$depth)))
-# 
-# plot(tab[, 1] / (tab[, 1] + tab[, 2]), type="o")
-# 
-# 
-# plot(detrended)
-# detrended <- na_interpolation(detrended, option = "linear")
-# plot(detrended)
-```
 
 ```{r}
 plot(diff(detrended), main="First difference")
