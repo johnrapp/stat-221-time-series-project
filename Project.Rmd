@@ -23,37 +23,37 @@ knitr::opts_chunk$set(echo = F)
 
 ## Background
 
-Mammoth is a mountain in Northern California know for its great alpine ski and snowboarding conditions. For this purpose, the mountain features a ski resort with the same name. This resort has has more than 3,500 acres of ski-able terrain and is serviced by 28 lifts and recieves over 1 million anuual visitors. For Southern Californian residents, the mountain is of interest as it is one of the closest "good" ski resorts, about a 4-6 hour drive away from Los Angeles. \ref{mammoth_about}
+Mammoth Mountain is situated in Northern California and is know for its great alpine ski and snowboarding conditions. For this purpose, the mountain features a ski resort with the same name. This resort has has more than 3,500 acres of ski-able terrain and is serviced by 28 lifts, recieving over 1 million annual visitors. For Southern Californian residents especially, the mountain is of interest as it is one of the closest "good" ski resorts, about a 4-6 hour drive away from Los Angeles. \ref{mammoth_about}
 
-As people familiar with alpine sports know, one of the most important conditions for the sport is the snow depth at the mountain, as this affects which runs are open and how "good" the skiing is. As decisions about travelling to a ski resort generally are done in advance and require some planning (e.g. booking a cabin), being able to predicts future conditions would be useful to the alpine skiier. In addition, the entire ski economy of a mountain such as Mammoth, including the resort, workers as well as restaurants and stores in the sorrounding city, face uncertainty over how many visitors the mountain will get a given week or year as this drives revenue. As visitorships likely is correlated with snow depth, forecasting it would be an important tool also for those stake holders. This paper will attempt to do just that: **model the snow depth at Mammoth mountain in order to make predictions on future skiing conditions and mountain visitorship**.
+Most people familiar with alpine sports considers snow depth one of the most important conditions for the sport, as this affects which runs are open and how "good" the skiing is considered. As decisions about travelling to a ski resort generally are done in advance and require some planning (e.g. booking a cabin), being able to predicts future conditions are be useful to the alpine skiier. In addition, the entire ski economy of a mountain such as Mammoth, including the resort, workers as well as restaurants and stores in the sorrounding city, face uncertainty over how many visitors the mountain will get a given week or year as this drives revenue. As visitorships likely is correlated with snow depth, forecasting it would be an important tool also for those stake holders. This paper will attempt to do just that: **model the snow depth at Mammoth mountain in order to make predictions on future skiing conditions**.
 
 ## Data set
-Data on historic snow depth at Mammoth were obtained from the reporting of Mammoth Mountain Ski Area, through a third party website \ref{mammoth_data}. The website does not give the data easily in a downloadable form, hence the data was obtained through injecting JavaScript into a browser client that took the data from the browser JavaScript enviroment and printed it in a PDF format. This raw data is shown in figure \ref{fig:raw_data}, featuring 1791 recordings from 2011-12-01
-through 2020-03-02 of daily snow depth measured in incehs. Opon looking at the graph, two issues with the raw data are found: 1) The dates in the off-season (outside of the winter months) are not included, rather the years are concatinated together in a single time-frame 2) some values within the recorded period are missing and reported as 0. Hence, the data needed to be cleaned.
+Data on historic snow depth at Mammoth were obtained from the reporting of Mammoth Mountain Ski Area, through a third party website \ref{mammoth_data}. The website does not provide the data easily in a downloadable format, hence the data was obtained through injecting JavaScript into a browser client that extracted, extracting the data from the browser JavaScript enviroment and printing it in a JSON format. This raw data is shown in figure \ref{fig:raw_data}, featuring 1791 recordings from 2011-12-01 through 2020-03-02 of daily snow depth measured in inches. Upon looking at the graph, two issues with the raw data are found: 1. The dates in the off-season (outside of the winter months) are not included, rather the years are concatinated together in a single time-frame 2. some values within the recorded period are missing and reported as 0. Hence, the data needed to be further processed and cleaned before fitting any models on it.
 
 ## Cleaning data
-The first step in cleaning the data was to include the missing dates in order to capture the full time-frame of the data. The next step was handling the missing values, both in the off-season as well as the missing recorded values. In order to handle the missing recorded values, as well as to make lower variance predictions on snow depth further in the future than a couple of days, the data was aggregated and averaged (disregarding the missing values) per week, creating a weekly time series. This week was defined as starting a Saturday, as this a day of interest for many weekend skieers. The off-season missing values were replaced by 0s, as this is an accurate description of the snow depth during those months -- there rarely is not snow on Mammoth during the summer. The resulting data after cleaning is shown in figure \ref{fig:cleaned}, featuring 431 weeks. The availability of data per month is displayed in \ref{fig:availability}, showing that data exists for the most part Dec-May, with less than 50% Jun-Oct, reaching ~80% in November.
+The first step in cleaning the data was to include the missing dates in order to capture the full time-frame of the series The next step was handling the missing values, both in the off-season as well as the missing recorded values. In order to handle the missing recorded values, as well as to make lower variance predictions on snow depth further in the future than a couple of days, the data was aggregated and averaged (disregarding the missing values) per week, resulting in a weekly time series. This week was defined as starting a Saturday, as this a day of interest for many weekend skieers. The off-season missing values were replaced by 0s, as this is an accurate description of the snow depth during those months -- there rarely is any snow on Mammoth during the summer. The resulting data after cleaning is shown in figure \ref{fig:cleaned}, featuring 431 weeks. The availability of data per month is displayed in figure \ref{fig:availability}, showing that data exists for the most part Dec-May, with less than 50% Jun-Oct, again reaching ~80% in November.
 
 # Analyis
-Looking at the grapth, it is clear that the ski season of 2020 has a far greater snow depth than prior years, an unfortunate fact for skiiers this season. To study other properties than this obvious observation, time-series methods were applied.
+Looking at the grapt in figure \ref{fig:cleaned}, it is clear that the ski season of 2020 has a far greater snow depth than prior years, an unfortunate fact for skiiers this season. In order to study other properties than this obvious observation, time-series methods were applied.
 
 ## Series properties
-First, the properties of the time-series were studies. Figure ref{fig:acf_series} shows the ACF and PACF of the series, where the ACF shows periodic behaviour with length 1 year that tails off, and the PACF has 2 (barely) significant values and then cuts off, implying that a seasonal AR model may be a good description of the series. The 1 year period is easily seen also in the periodogram (figure \ref{fig:period_series}), together with a 4 year period, both significant peaks. The 4 year period may be an artifact of the data being recorded for 4 years and these years having a pattern of yearly depth by  chance.
+Figure \ref{fig:acf_series} plots the ACF and PACF of the series, it where the ACF shows periodic behaviour with a 1 year period that appears to be slowly tailing off, while the PACF has 2 (barely) significant values and then cuts off, followed by a significant value at lag 1 year. This implying that a seasonal AR model may be a good description of the series. The 1 year period is easily seen also in the periodogram (figure \ref{fig:period_series}), together with a 4 year period, both being significant peaks. The 4 year period may be an artifact of the data being recorded for 4 years and these years having a pattern of yearly depth by  chance.
 
-The data does not appear to be stationary as it has an obvious yearly trend, and ARIMA models can not be applied. Hence the data must first be detrended.
+The data does not appear to be stationary as it has an obvious yearly trend and a clea pattern. As such, the data must first be detrended before ARIMA models can be applied.
 
 ## Detrending
-The most obvious trend in the data that may be removed is the 1 year seasonal trend. This trend can be seen in figure \ref{fig:avg_weekly} which shows the average snow depth during the differing weeks of the year. This graph has a clear sinusoidal shape. As such, a first attempt at detrending the data was made by subracting the average of the year to every data point. The result of this may be seen in figure \ref{fig:detrended_week}. Looking at the graph, it does however not appear to be stationary. One artifact of this detrending method is that the different years experience different levels of snow, causing years with less snow to have a clear negative peak and years with more snow to have a positive peak. The snow depth of all years as a function of the week of the year is seen in figure \ref{fig:weekly}, which makes it clear that the snow level is very different each year and that the average hence is not a good predictor.
+The most obvious trend in the data that may be removed is the 1 year seasonal trend. This trend can be seen in figure \ref{fig:avg_weekly} which shows the average snow depth during the different weeks of the year (week 1 through week 53). This graph has a clear sinusoidal shape. As such, a first attempt at detrending the data was made by subracting the average snow depth of the week of year to every data point. The result of this may be seen in figure \ref{fig:detrended_week}. Looking at the graph, it does however not appear to be stationary. One artifact of this detrending method is that the different years experience different levels of snow, causing years with less snow to have a clear negative valley and years with more snow to have a positive peak. Looking at the snow depth by week of the year for all years simoultaneaosly, seein in figure \ref{fig:weekly}, makes it clear that the snow level is very different each year and that the average hence is not a good predictor.
 
-One way to mitigate this fact is to study values in relation to the peak snow level of the year. If one assumes that the peak value of every year is independent of the other years, and driven by other dynamics, what we should study in order to make accurate predictions of the current year is its divergence from its peak. With this model, forecasting the snow depth of an unknow period would be split into two models, one who predicts the peak snow level of the year given historic values (as we only have 8 observations of this value however the prediction will have high variance), another model can then be used to predict the snow level relative to that year. The second model is the one we are going to develop going forward. Figure \ref{fig:detrended_relative} shows the snow depth relative to the peak value of the season, from this the average of the week of the year of every data point is subtracted to remove seasonality. This model assumes that the dynamics of when and how much it snows is similar year to year. The resulting detrended graph is shown in figure \ref{fig:detrended_before_linear} both with missing values as 0s and with missing dates ommited. The series looks fairly stationary, still having some features. This series however appears to still have an upwards linear trend, as such, the final detrended data is created by removing this linear trend show in figure \ref{fig:detrended}.
+One way to mitigate this fact is to study values in relation to the peak snow level of the year. The assumption one makes is that the dynamics that determine what the peak snow depth, or how high the snow peak will be a given year, is different from the dynamics that govern how its snowing and thawing during the year, dividing into a makro and micro model. With this approach, one model could be used to predict peak snow depth a given year, e.g. assuming that they are independent and follow a certain distribution. Under this assumption, predicting the snow depth for the rest of a season  may be done by only looking at how the current and past values have been in relation to the peak snow depth during the year, which is the approach implemented in this paper. Figure \ref{fig:detrended_relative} shows the snow depth relative to the peak value of the season, from this the average of the week of the year of every data point is subtracted in order to remove seasonality. This model assumes that the dynamics of when and how much it snows is similar from year to year. The resulting detrended graph is shown in figure \ref{fig:detrended_before_linear} both with the off-seasons as 0s, and with missing values ommited, all ski seasons shows next to each other. This series finally looks fairly stationary, while still having some features that can modelled with time-series methods. As the series however appears to still have an upwards linear trend, the final detrended data is created by removing this linear trend, shown in figure \ref{fig:detrended}.
 
-As for the missing values, there are multiple ways to handle them, the most obvious being either setting them to 0 or removing those dates from the data. As the lenght of the seasons differ from year to year, removing the off-seasons from the data makes seasonality measures such as the periodogram harder to interpret. As models were fit to both data sets showed similar performance, the one with 0s is kept.
+As for the missing values in the data set, there are multiple ways to handle them the most obvious being either setting them to 0 or removing those dates from the data. As the lenght of the seasons differ from year to year, removing the off-seasons from the data makes seasonality measures such as the periodogram harder to interpret. As models were fit to both data sets showed similar performance, the one with missing values as 0s is considered going forward.
 
 ## Detrended series properties
+Figure \ref{fig:acf_detrended} shows the ACF and PACF of the detrended series. The ACF is tailing of faster for this series, however still with a peak after one year, impying that the yearly feature has not been fully taken out. The PACF only has a single (barely) significant value then cuts off. This implies that a low order AR model may be appropriate, again potentially with a yearly seasonal component. The periodogram, seen in figure \ref{fig:period_detrended}, has 5 significant peaks (in blue), with period ~2.1, ~0.69, ~0.44, ~0.28 and ~0.20 years. Figure \ref{fig:period_detrended_peaks} shows that the peaks has a clear pattern, the first having frequency ~0.48, and then being fairly evenly spaced. This means that the detrended series still has periodic components to it, however the frequencies are not easily interpretable as to what they describe. Figure \ref{fig:period_detrended_ar} plots the parametric periodogram, showing the periodogram of the fitting the best fitting AR(p) model. For the detrended series, an AR(2) fit the best, having no clear peaks but a low frequency spectrum. These two periodograms both tell us is that the noise in the data is mostly low frequency, and therefore fairly smooth.
 
-## Model fitting
+## Model fitting and interpretation
+In order to fit a (seasonal) ARIMA model to the detrended data, different models with different values of $p$, $q$ and $d$ as well as seasonal components were compared and evaluated based on their AIC-value. This process yielded two candidates ARIMA(2,0,1)(0,0,1)[52] ARIMA(2,0,1)
 
-## Model interpretation
 
 ## Model evaluation
 
@@ -70,10 +70,6 @@ As for the missing values, there are multiple ways to handle them, the most obvi
 ## Next steps
 
 # Appendix - Figures and graphs
-
-# References
-
-1. https://www.mammothmountain.com/ 
 
 
 
@@ -169,7 +165,7 @@ data$depth[which(is.na(data$depth))] <- 0
 ```
 
 
-```{r fig.cap="\\label{fig:raw_data}Raw Mammoth snow depth data", fig.height=4}
+```{r fig.cap="\\label{fig:cleaned}Mammoth after initial cleaning", fig.height=4}
 series <- ts(
   data$depth,
   start=c(as.numeric(format(data$date[1], "%Y")), as.numeric(format(data$date[1], "%U"))),
@@ -184,7 +180,7 @@ plot(series, main="Cleaned data", ylab="Snow depth (in)")
 tab <- table(as.numeric(format.Date(data$date, "%m")), data$depth == 0)
 
 month.labels <- c("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D")
-barplot(tab[, 1] / (tab[, 1] + tab[, 2]), names.arg = month.labels, ylab="% available data", main="Available data by month")
+barplot(100*tab[, 1] / (tab[, 1] + tab[, 2]), names.arg = month.labels, ylab="% available data", main="Available data by month")
 ```
 
 
@@ -205,7 +201,7 @@ pacf(diff(series), lag.max = 52 * 2)
 adf.test(series)
 ```
 
-```{r, fig.cap="\\label{fig:series_period}Periodogram for the cleaned data, peeks at period 1 and 4 years shows with 95% signifance level", fig.height=7}
+```{r, fig.cap="\\label{fig:period_series}Periodogram for the cleaned data, peeks at period 1 and 4 years shown with a 95% significance interval", fig.height=7}
 par(mfrow=c(2,1))
 pg <- mvspec(series, log="no")
 
@@ -279,9 +275,6 @@ points(as.Date(paste(agg_max_season$period,"/1/1",sep=""), format="%Y/%m/%d"), a
 ```
 
 
-fig:detrended_collapsed
-fig:detrended
-
 ```{r, fig.cap="\\label{fig:detrended_relative}First step of detrending the data, taking the values relative to the peak of the season", fig.height=4}
 normalized_depth <- data$depth/agg_max_season$x[match(as.numeric(format(data$date + seasonal_offset, "%Y")), agg_max_season$period)]
 normalized_depth <- normalized_depth
@@ -291,7 +284,7 @@ plot(data$date, normalized_depth, type="l")
 ```
 
 
-```{r, fig.cap="\\label{fig:detrended_before_linear}First step of detrending the data, taking the values relative to the peak of the season", fig.height=7}
+```{r, fig.cap="\\label{fig:detrended_before_linear}Detrended data after subracting the yearly trend", fig.height=7}
 weeks <- as.numeric(format(data$date, "%V"))
 
 agg_mean_week <- aggregate(
@@ -312,7 +305,7 @@ detrended_collapsed <- detrended[which(data$depth != 0)]
 plot(detrended_collapsed, type="l")
 ```
 
-```{r}
+```{r, include=F}
 regr <-list(time=time(detrended))
 
 lin.mod <- lm(detrended ~ time, data=regr)
@@ -326,7 +319,7 @@ detrended <- detrended - predict(lin.mod, regr)
 
 
 
-```{r, fig.cap="\\label{fig:detrended}Final detrended data", fig.height=4}
+```{r, fig.cap="\\label{fig:detrended}Final detrended data", fig.height=7}
 
 detrended <- ts(
   detrended,
@@ -334,11 +327,14 @@ detrended <- ts(
   end=end(series),
   frequency=frequency(series)
 )
-plot(detrended, ylab="Snow depth (in)", main="Weekly average snow depth, detrended")
+par(mfrow=c(2,1))
+plot(detrended, ylab="XXX", main="Weekly average snow depth, detrended")
+detrended_collapsed <- detrended[which(data$depth != 0)]
+plot(detrended_collapsed, type="l")
 ```
 
 
-```{r}
+```{r, include=F}
 plot(diff(detrended), main="First difference")
 abline(v=time(series)[which(abs(diff(series))>50)], col="blue")
 
@@ -350,8 +346,15 @@ adf.test(detrended)
 adf.test(diff(detrended))
 ```
 
+```{r, fig.cap="\\label{fig:acf_series}ACF and PACF for the detrended time-series", fig.height=7}
+par(mfrow=c(2,1))
+plot(acf(detrended, lag.max = 52 * 2, plot = F), ylim=c(-1,1), xlim=c(0.1,2), main="acf")
+plot(pacf(detrended, lag.max = 52 * 2, plot = F), ylim=c(-1,1), xlim=c(0.1,2), main="pacf")
+```
 
-```{r}
+
+```{r, fig.cap="\\label{fig:period_detrended}Periodogram for the detrended data, peeks shown with a 95% significance interval, significant peaks marked in blue", fig.height=7}
+par(mfrow=c(2,1))
 pg <- mvspec(detrended, log="no")
 
 k = kernel("daniell", c(1,1))
@@ -364,33 +367,32 @@ alpha <- 0.05
 U = qchisq(alpha/2, 2*l)
 L = qchisq(1-alpha/2, 2*l)
 
-peaks <- findpeaks(pg$spec, npeaks = 4)[,2]
+peaks <- findpeaks(pg$spec, npeaks = 8)[,2]
 # points(pg$freq[peaks], pg$spec[peaks])
 
-1/pg$freq[peaks]
+# 1/pg$freq[peaks]
 
 conf <- list(l = 2*l*pg$spec[peaks]/L, u = 2*l*pg$spec[peaks]/U)
-  
-segments(x0=pg$freq[peaks],y0=conf$l,x1=pg$freq[peaks],y1=conf$u,col="blue")
-segments(x0=pg$freq[peaks]-0.1,y0=conf$l,x1=pg$freq[peaks]+0.1,y1=conf$l,col="blue")
 
-plot(pg$freq[peaks])
+segments(x0=pg$freq[peaks[1:5]],y0=conf$l[1:5],x1=pg$freq[peaks[1:5]],y1=conf$u[1:5],col="blue")
+segments(x0=pg$freq[peaks[1:5]]-0.1,y0=conf$l[1:5],x1=pg$freq[peaks[1:5]]+0.1,y1=conf$l[1:5],col="blue")
+
+segments(x0=pg$freq[peaks[6:8]],y0=conf$l[6:8],x1=pg$freq[peaks[6:8]],y1=conf$u[6:8],col="gray")
+segments(x0=pg$freq[peaks[6:8]]-0.1,y0=conf$l[6:8],x1=pg$freq[peaks[6:8]]+0.1,y1=conf$l[6:8],col="gray")
 
 ```
 
-```{r}
+
+```{r, fig.cap="\\label{fig:period_detrended_peaks}Frequencies of the significant peaks in the periodogram of the detrended data", fig.height=4}
+plot(pg$freq[peaks[1:5]], type="o", xlab="Peak number", ylab="Peak frequency")
+```
+
+```{r, fig.cap="\\label{fig:period_detrended_ar}Parametric periodogram of the detrended data, showing the periodogram of an AR(2)", fig.height=4}
 pg <- spec.ar(detrended)
 ```
 
 
 
-# ACF
-```{r}
-acf(detrended, lag.max = 52 * 2, main="acf")
-pacf(detrended, lag.max = 52 * 2, main="pacf")
-```
-
-# Fit ARIMA
 
 ```{r}
 # auto.arima(detrended)
@@ -428,39 +430,17 @@ pacf(detrended, lag.max = 52 * 2, main="pacf")
 # sarima(detrended, 1,1,1)
 
 
-sarima(detrended, 2,0,0)
+sarima(detrended, 2,0,1)
 sarima(detrended, 2,0,1, 0,0,1, 1)
 ```
 
 ```{r}
 models <- list(
-  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52))#,
-  
-  # arima(detrended, order=c(2,1,2), seasonal=list(order=c(1,0,1), period=52)),
-  # # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,1,0), period=52))#,
-  # # arima(detrended, order=c(3,1,2), seasonal=list(order=c(1,1,0), period=52))#,
-  # # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,1), period=52)),
-  # # arima(detrended, order=c(3,0,3), seasonal=list(order=c(3,1,3), period=52))
-  # # arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,1), period=52))#,
-  # # arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,1,2), period=52))#,
-  # # arima(detrended, order=c(3,1,2), seasonal=list(order=c(2,1,1), period=52)),
-  # # arima(detrended, order=c(5,1,2)),
-  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,0,0), period=52)),
-  # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,0,0), period=52)),
-  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(2,0,0), period=52)),
-  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52)),
-  # arima(detrended, order=c(2,0,1), seasonal=list(order=c(1,1,1), period=52)),
-  
   arima(detrended, order=c(2,0,1), seasonal=list(order=c(0,0,1), period=52)),
+  arima(detrended, order=c(2,0,2), seasonal=list(order=c(0,0,1), period=52)),
   
-  # arima(detrended, order=c(1,1,1))#,
-  arima(detrended, order=c(2,0,0)),
-  arima(detrended, order=c(2,0,2)),
-  arima(detrended, order=c(2,1,2))#,
-  
-  # arima(detrended, order=c(2,1,1), seasonal=list(order=c(1,0,1), period=52))#,
-  # arima(detrended, order=c(5,0,5), seasonal=list(order=c(5,0,5), period=52)),
-  # arima(detrended, order=c(5,0,5), seasonal=list(order=c(5,0,5), period=52)),
+  arima(detrended, order=c(2,0,1)),
+  arima(detrended, order=c(2,0,2))#,
 )
 
 models
@@ -530,14 +510,15 @@ segments(x0=pg$freq[peaks]-0.1,y0=conf$l,x1=pg$freq[peaks]+0.1,y1=conf$l,col="bl
 plot(pg$freq[peaks])
 ```
 
+```{r, fig.cap="\\label{fig:asd}Periodogram of the best fitting AR(p) model of the detrended data", fig.height=4}
+pg <- spec.ar(best_model$residuals)
+```
 
 ```{r}
 weeks_omit <- 5
 ommitted_series <- subset(detrended, start=1, end=length(detrended) - weeks_omit)
-# best_model <- arima(ommitted_series, order=c(1,1,1))
 # best_model <- arima(ommitted_series, order=c(2,0,1))
 best_model <- arima(ommitted_series, order=c(2,0,1), seasonal=list(order=c(0,0,1), period=52))
-# best_model <- arima(ommitted_series, order=c(2,0,1), seasonal=list(order=c(1,1,0), period=52))
 
 
 # plot(detrended, type="l")
@@ -563,3 +544,8 @@ lines(detrended, lt="dashed",col=1)
 
 ```
 
+
+
+# References
+
+1. https://www.mammothmountain.com/ 
