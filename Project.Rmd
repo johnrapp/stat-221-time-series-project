@@ -312,7 +312,6 @@ points(as.Date(paste(agg_max_season$period,"/1/1",sep=""), format="%Y/%m/%d"), a
 
 ```{r, fig.cap="\\label{fig:detrended_relative}First step of detrending the data, taking the values relative to the peak of the season", fig.height=4}
 normalized_depth <- data$depth/agg_max_season$x[match(as.numeric(format(data$date + seasonal_offset, "%Y")), agg_max_season$period)]
-normalized_depth <- normalized_depth
 
 plot(data$date, normalized_depth, type="l", ylab="Relative snow depth (%)", xlab="Time")
 
@@ -339,6 +338,7 @@ plot(data$date, detrended, type="l", ylab="Relative snow depth (%)", xlab="Time"
 
 detrended_collapsed <- detrended[which(data$depth != 0)]
 plot(detrended_collapsed, type="l", ylab="Relative snow depth (%)")
+
 ```
 
 ```{r, include=F}
@@ -349,8 +349,6 @@ summary(lin.mod)
 
 # plot(detrended, type="l")
 # lines(predict(lin.mod, regr), type="l", col="red")
-
-detrended <- detrended - predict(lin.mod, regr)
 ```
 
 
@@ -588,6 +586,73 @@ pg <- spec.ar(best_model$residuals)
 
 ```{r}
 
+nd <- data$depth/agg_max_season$x[match(as.numeric(format(data$date + seasonal_offset, "%Y")), agg_max_season$period)]
+# plot(nd[series != 0], type="l")
+
+
+weeks <- as.numeric(format(data$date, "%V"))
+dt <- nd - agg_mean_week$x[match(weeks, agg_mean_week$period)]
+# plot(dt[series != 0], type="l")
+
+dt <- dt - predict(lin.mod, regr)
+# plot(dt[series != 0], type="l")
+
+
+
+
+dates <- data$date[series != 0]
+weeks <- as.numeric(format(dates, "%V"))
+
+# plot(detrended, type="l")
+
+lintrended <- detrended + predict(lin.mod, list(time=regr$time[series!=0]))
+# plot(lintrended, type="l")
+
+normalized_depth <- lintrended + agg_mean_week$x[match(weeks, agg_mean_week$period)]
+plot(normalized_depth)
+
+trended <- normalized_depth*agg_max_season$x[match(as.numeric(format(dates + seasonal_offset, "%Y")), agg_max_season$period)]
+
+plot(trended)
+plot(data$depth[series != 0], type="l")
+
+
+
+# 
+# weeks_ahead <- 52
+# fore <- predict(best_model, n.ahead= weeks_ahead)
+# # 
+# # first_date <- time(detrended)[1]
+# # last_date <- time(detrended)[length(time(detrended))]
+# 
+# first_date <- time(series)[1]
+# last_date <- time(series)[length(time(series))]
+# 
+# # xlim=c(last_date - 52 / 52, last_date + weeks_ahead / 52), 
+# ts.plot(series, ylab="Snow depth (in)", main="Snow depth forecast")
+# 
+# freq <- frequency(series)
+# 
+# dates <- seq(from=last_date + 1/freq, by = 1/freq, length.out = 52)
+# 
+# pred <- fore$pred
+# 
+# # U = fore$pred+fore$se; L = fore$pred-fore$se
+# # xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
+# # polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
+# # lines(fore$pred, type="o", col=2)
+# 
+# 
+# # ts.plot(detrended, fore$pred, col=1:2, xlim=c(first_date,last_date + weeks_ahead / 52), ylab="Snow depth (in)", main="Snow depth forecast")
+# 
+# # U = fore$pred+fore$se; L = fore$pred-fore$se
+# # xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
+# # 
+# # polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
+# # lines(fore$pred, type="p", col=2)
+```
+
+```{r}
 weeks_ahead <- 52
 fore <- predict(best_model, n.ahead= weeks_ahead)
 
@@ -607,10 +672,6 @@ xx = c(time(U), rev(time(U))); yy = c(L, rev(U))
 
 polygon(xx, yy, border = 8, col = gray(.6, alpha = .2))
 lines(fore$pred, type="p", col=2)
-# 
-# for (y in 0:8) {
-#   abline(v = last_date - y, lty="dashed", col="gray")
-# }
 ```
 
 
