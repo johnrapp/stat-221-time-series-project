@@ -2,6 +2,8 @@
 title: "STAT 221 Final Project - Mammoth Snow Depth"
 author: "John Rapp Farnes | 405461225"
 date: "3/19 2020"
+header-includes:
+   - \usepackage{float}
 output:
   pdf_document:
     toc: true
@@ -11,7 +13,7 @@ output:
 \newpage
 
 ```{r setup, include = F}
-knitr::opts_chunk$set(echo = F, fig.pos = 'H')
+knitr::opts_chunk$set(echo = F, fig.pos = '!htb')
 ```
 
 # Introduction
@@ -20,7 +22,7 @@ knitr::opts_chunk$set(echo = F, fig.pos = 'H')
 
 Mammoth Mountain is situated in Northern California and is know for its great alpine ski and snowboarding conditions. For this purpose, the mountain features a ski resort with the same name. This resort has has more than 3,500 acres of ski-able terrain and is serviced by 28 lifts, recieving over 1 million annual visitors. For Southern Californian residents especially, the mountain is of interest as it is one of the closest high-quality ski resorts, about a 4-6 hour drive away from Los Angeles. \cite{mammoth}
 
-Most people familiar with alpine sports consider snow depth one of the most important conditions for the sport, as this affects which runs are open and how "good" the skiing is considered. As decisions about travelling to a ski resort generally are done in advance and require some planning (e.g. booking a cabin), being able to predicts future conditions are be useful to the alpine skiier. In addition, the entire ski economy of a mountain such as Mammoth, including the resort, workers as well as restaurants and stores in the sorrounding city, face uncertainty over how many visitors the mountain will get a given week or year as this drives revenue. As visitorships likely is correlated with snow depth, forecasting it would be an important tool also for those stake holders. This paper will attempt to do just that: **model the snow depth at Mammoth mountain in order to make predictions on future skiing conditions**.
+Most people familiar with alpine sports consider snow depth one of the most important conditions for the sport, as this affects which runs are open and how "good" the skiing is considered. As decisions about travelling to a ski resort generally are done in advance and require some planning (e.g. booking a cabin), being able to predicts future conditions would be useful to the alpine skiier. In addition, the entire ski economy of a mountain such as Mammoth, including the resort, workers as well as restaurants and stores in the sorrounding city, face uncertainty over how many visitors the mountain will get a given week or year as this drives revenue. As visitorships likely is correlated with snow depth, forecasting it would be an important tool also for those stake holders. This paper will attempt to do that: **model the snow depth at Mammoth mountain in order to make predictions on future skiing conditions**.
 
 ## Data set
 Data on historic snow depth at Mammoth were obtained from the reporting of Mammoth Mountain Ski Area, through a third party website \cite{mammoth_data}. The website does not provide the data easily in a downloadable format, hence the data was obtained through injecting JavaScript into a browser client that extracted the data from the browser's JavaScript enviroment and printed it in a JSON format. This raw data is shown in figure \ref{fig:raw_data}, featuring 1791 recordings from 2011-12-01 through 2020-03-02 of daily snow depth measured in inches. Upon looking at the graph, two issues with the raw data are found: First, the dates in the off-season (outside of the winter months) are not included, rather the years are concatinated together in a single time-frame. Second, some values within the recorded period are missing and reported as 0. Hence, the data needed to be further processed and cleaned before fitting any models on it.
@@ -32,22 +34,22 @@ The first step in cleaning the data was to include the missing dates in order to
 Looking at the graph in figure \ref{fig:cleaned}, it is clear that the ski season of 2020 has a far lower snow depth than prior years, an unfortunate fact for skiiers this season. In order to study other properties than this obvious observation, time-series methods were applied.
 
 ## Series properties
-Figure \ref{fig:acf_series} plots the ACF and PACF of the series. The ACF shows periodic behaviour with a 1 year period that appears to be slowly tailing off, while the PACF has 2 (barely) significant values and then cuts off, followed by a significant value at lag 1 year. This implying that a seasonal AR model may be a good description of the series. The 1 year period is easily seen also in the periodogram shown in figure \ref{fig:period_series}, together with a 4 year period, both being significant peaks. The 4 year period may be an artifact of the data being recorded for 8 years and these years having a pattern of yearly depth by random chance.
+Figure \ref{fig:acf_series} plots the ACF and PACF of the series. The ACF shows periodic behaviour with a 1 year period that appears to be slowly tailing off, while the PACF has 2 (barely) significant values and then cuts off, followed by a significant value at lag 1 year. This implies that a seasonal AR model may be a good description of the series. The 1 year period is easily seen also in the periodogram shown in figure \ref{fig:period_series}, together with a 4 year period, both being significant peaks. The 4 year period may be an artifact of the data being recorded for 8 years and these years having a pattern of yearly depth by random chance.
 
 The data does not appear to be stationary as it has an obvious yearly trend and a clear pattern of snowing and thawing in the beginning and end of seasons. As such, the data must first be detrended before ARIMA models can be applied.
 
 ## Detrending
-The most obvious trend in the data that may be removed is the 1 year seasonal trend. This trend can be seen in figure \ref{fig:avg_weekly} which shows the average snow depth during the different weeks of the year (week 1 through week 53). This graph has a clear sinusoidal shape. As such, a first attempt at detrending the data was made by subracting the average snow depth of the week of year to every data point. The result of this may be seen in figure \ref{fig:detrended_week}. Looking at the graph, it does however not appear to be stationary. One artifact of this detrending method is that the different years experience different levels of snow, causing years with less snow to have a clear negative valley and years with more snow to have a positive peak. Looking at the snow depth by week of the year for all years simoultaneaosly, seen  in figure \ref{fig:weekly}, makes it clear that the snow level is very different each year and that the average hence is not a good predictor.
+The most obvious trend in the data that may be removed is the 1 year seasonal trend. This trend can be seen in figure \ref{fig:avg_weekly} which shows the average snow depth during the different weeks of the year (week 1 through week 53), which has a clear sinusoidal shape. As such, a first attempt at detrending the data was made by subracting the average snow depth of the week of year to every data point. The result of this may be seen in figure \ref{fig:detrended_week}. Looking at the graph, it does however not appear to be stationary. One artifact of this detrending method is that the different years experience different levels of snow, causing years with less snow to have a clear negative valley and years with more snow to have a positive peak. Looking at the snow depth by week of the year for all years simoultaneaosly, seen  in figure \ref{fig:weekly}, makes it clear that the snow level is very different each year and that the average hence is not a good predictor.
 
 One way to mitigate this fact is to study values in relation to the peak snow level of the year. The assumption one makes is that the dynamics that determine what the peak snow depth, or how high the snow peak will be a given year, is different from the dynamics that govern how its snowing and thawing during the year, dividing the analysis into a macro and micro model. With this approach, one model could be used to predict peak snow depth a given year, e.g. assuming that they are independent and follow a certain distribution. Under this assumption, predicting the snow depth for the rest of a season  may be done by only looking at how the current and past values have been in relation to the peak snow depth during the year, which is the approach implemented in this paper. Figure \ref{fig:detrended_relative} shows the snow depth relative to the peak value of the season, from this the average of the week of the year of every data point is subtracted in order to remove seasonality. This model assumes that the dynamics of when and how much it snows is similar from year to year. The resulting detrended graph is shown in figure \ref{fig:detrended_before_linear} both with the off-seasons as 0s, as well as with with missing values ommited, all ski seasons shown next to each other. This series finally looks fairly stationary, while still having some features that can modelled with time-series methods. As the series however appears to still have an upwards linear trend, the final detrended data is created by removing this linear trend, shown in figure \ref{fig:detrended}.
 
-As for the missing values in the data set, there are multiple ways to handle them, the most obvious being either setting them to 0 or removing those dates from the data. As the lenght of the seasons differ from year to year, removing the off-seasons from the data makes seasonality measures such as the periodogram harder to interpret. On the other hand, including the 0s makes the variance in the data vary significantly as it is 0 in the off-season, which is not consistent with the ARIMA assumptions.
+As for the missing values in the data set, there are multiple ways to handle them, the most obvious being either setting them to 0 or removing those dates from the data. As the length of the seasons differ from year to year, removing the off-seasons from the data makes seasonality measures such as the periodogram harder to interpret, and seasonal components less accurate. On the other hand, including the 0s makes the variance in the data vary significantly as it is 0 in the off-season, which is not consistent with the ARIMA assumptions.
 
 ## Detrended series properties
 Figure \ref{fig:acf_detrended} shows the ACF and PACF of the detrended series. The ACF is tailing of faster for this series, however still with a peak after one year, implying that the yearly feature has not been fully taken out. The PACF only has a single (barely) significant value then cuts off. This implies that a low order AR model may be appropriate, again potentially with a yearly seasonal component. The periodogram, seen in figure \ref{fig:period_detrended}, has 5 significant peaks (in blue), with period ~2.1, ~0.69, ~0.44, ~0.28 and ~0.20 years. Figure \ref{fig:period_detrended_peaks} shows that the peaks has a clear pattern, the first having frequency ~0.48, and then being fairly evenly spaced. This means that the detrended series still has periodic components to it, however the frequencies are not easily interpretable as to what they describe. Figure \ref{fig:period_detrended_ar} plots the parametric periodogram, showing the periodogram of the fitting the best fitting AR(p) model. For the detrended series, an AR(2) fit the best, having no clear peaks but a low frequency spectrum. These two periodograms both tell us is that the noise in the data is mostly low frequency, and therefore fairly smooth.
 
 ## Model fitting
-In order to fit a (seasonal) ARIMA model to the detrended data, different models with different values of $p$, $q$ and $d$ as well as seasonal components were compared and evaluated based on their AIC-value, starting with bigger more complex models and lowering the complexity as long as terms are insignificant. This process yielded an SARIMA(2,0,1)(0,0,1)[52] model as the optimal model choise. This yearly seasonal model fitting better than a simpler ARMA(2,0,1) implies that there is still some seasonality in the data after detrending. In mathematical tersm, this SARIMA(2,0,1)(0,0,1)[52] model can be written as:
+In order to fit a (seasonal) ARIMA model to the detrended data, different models with different values of $p$, $q$ and $d$ as well as seasonal components were compared and evaluated based on their AIC-value, starting with bigger more complex models and lowering the complexity as long as terms are insignificant. This process yielded an SARIMA(2,0,1)(0,0,1)[52] model as the optimal model choice. This yearly seasonal model fitting better than a simpler ARMA(2,0,1) implies that there is still some seasonality in the data after detrending. In mathematical terms, this SARIMA(2,0,1)(0,0,1)[52] model can be written as:
 
 $$
 \begin{aligned}
@@ -78,7 +80,7 @@ The performance and goodness of fit of the model can be evaluated in two main wa
 
 
 ### Residual analysis
-In figure \ref{fig:resid_plots_missing}, several plots showing different characteristics of the resisduals are show: the standardized residuals, the ACF of residuals, a normal Q-Q plot and p-values for the Ljung-Box statistic, for the detrended data with missing values set to 0. Looking at the standardized residuals in the plot, it is clear that the residuals does not fully fullfil the assumptions, as many have an absolut value greater than 2, and multiple even greater than 4 which would improbable if they were normally distributed. There also seems to be some pattern left in them. The ACF has no significant peaks and hence there should be no clear dependence between residuals, this is confirmed by the p-values of the Ljung-Box statistic, where only one dips below the significance level. The normal Q-Q plot shows that the rediduals does not appear to be normal, as many are diverging from the normal quantile line.
+In figure \ref{fig:resid_plots_missing}, several plots showing different characteristics of the resisduals are show: the standardized residuals, the ACF of residuals, a normal Q-Q plot and p-values for the Ljung-Box statistic, for the detrended data with missing values set to 0. Looking at the standardized residuals in the plot, it is clear that the residuals does not fully fullfil the assumptions, as many have an absolut value greater than 2, and multiple even greater than 4 which would improbable if they were normally distributed. There also seems to be some pattern left in them. The ACF has no significant peaks and hence there should be no clear dependence between residuals, which is confirmed by the p-values of the Ljung-Box statistic, where only one dips below the significance level. The normal Q-Q plot shows that the rediduals does not appear to be normal, as many are diverging from the normal quantile line.
 
 One reason for the standardized residuals diverging so far from the normal assumptions is that the data, and with it the residuals, contains a lot of 0s which can be seen in figure \ref{fig:hist_resid_missing}, showing a histogram of the residuals compared to a sampled normal distribution. These zereoes lower the variance estimate, making the standardized residuals bigger. One way to mitigate this problem is to train the model on a data set exluding the missing values, concatinating the seasons together. The residual statistics of this model is shown in figure \ref{fig:resid_plots}. For this model, the standardized residuals are still bigger than expected by the normal assumption but to a lesser degree. The ACF has one significant value, but this could be a statistical fluke. The Ljung-Box looks better and the QQ plot similar to the previous model. In figure \ref{fig:hist_resid} plotting a histogram of the absolute values of the residuals compared to a samples normal distribution, the residuals more closely resembles a normal distribution than the model with missing values included. In the histogram, it is clear that the residuals have more "low" values as well as "high" values and fewer in-between, compared to the normal distribution. This could reflect the two dynamics seen in the data in figure \ref{fig:cleaned}, where it snows and thaws agressively in the beginning and end of the season, with smaller differences within the season.
 
@@ -87,14 +89,14 @@ Looking at the periodogram of the residuals, shown in figure \ref{fig:period_res
 In conclusion, the model does not completely meet the assumptions of the model, but is close to doing so. As a result, it should make fairly accurate predictions, however the uncertainty is likely bigger than predicted by the model.
 
 ### Prediction
-Using the trained model, predictions were made for the coming 30 weeks, results (after undoing the detrending) shown in figure \ref{fig:forecast}. The model predicts that the snow depth will increase, which doesn't seem consistent with the trajectory of the current season at first glance. However, looking at this time of year previous years (shown in dashed gray lines), the snow level tends to increase after this time of year. After the peak, the snow depth is expected to decrease quickly, consistent with the dynamics of the ski season The standard errors are fairly small, implying a confident prediction, however as previously discussed this may not actually be the case.
+Using the trained model, predictions were made for the coming 30 weeks, results (after undoing the detrending) shown in figure \ref{fig:forecast}, and predicts that the snow depth will increase, which doesn't seem consistent with the trajectory of the current season at first glance. However, looking at this time of year previous years (shown in dashed gray lines), the snow level tends to increase after this time of year. After the peak, the snow depth is expected to decrease quickly, consistent with the dynamics of the ski season. The standard errors are fairly small, implying a confident prediction, however as previously discussed this may not actually be the case.
 
 Figure \ref{fig:forecast_back} shows the prediction of the model looking back 10 weeks, i.e. how it would predict this time of year if we were looking at data from earlier in the season, with the actual outcome shown in a dashed line. The model does not accurately predict the outcome of the season, as it predicts it going down rather than up. However the actual observation mostly fits within the two standard deviation area.
 
 # Conclusion
-In this paper, time series methods were used to analyze and predict the snow depth at Mammoth mountain. An issue with the data-set that had to be handled in order to successfully apply the methods on it was missing values, primarily in the off-season but also to some extent within the season. This issue was dealt with by aggregating and averageing the data by week, as well as setting missing values to 0, assuming there was no snow in the off-season. Next, the data was detrended by normalizing the depth according to the yearly peak, as well as removing a yearly trend. This approach assumes a macro model which predicts the peak snow depth a given year, as well as a micro model which models the snowing and thawing dynamics during the season. The micro model is implemented in this paper to predict the snow levels of the current year. The detrended data appears stationary, implying a SARIMA model may be appropriate. An optimal model was choosing based on the optimizing for lowest AIC, resulting in a SARIMA(2,0,1)(0,0,1)[52] model. The model performed best when fed with missing values removed from the data set, rather than set to 0. The resulting model appears to fairly well describe the dynamics of the data, based on the residual and forecast analysis. However, as always, the model should be used as an indication rather than the truth, as its results are uncertain.
+In this paper, time series methods were used to analyze and predict the snow depth at Mammoth mountain. An issue with the data-set that had to be handled in order to successfully apply the methods on it was missing values, primarily in the off-season but also to some extent within the season. This issue was dealt with by aggregating and averageing the data by week, as well as setting missing values to 0, assuming there was no snow in the off-season. Next, the data was detrended by normalizing the depth according to the yearly peak, as well as removing a yearly trend. This approach assumes a macro model which predicts the peak snow depth a given year, as well as a micro model which models the snowing and thawing dynamics during the season. The micro model is implemented in this paper to predict the snow levels of the current year. The detrended data appears stationary, implying a SARIMA model may be appropriate. An optimal model was choosing based on the optimizing for lowest AIC, resulting in a SARIMA(2,0,1)(0,0,1)[52] model. The model performed best when fed with missing values removed from the data set, rather than set to 0. The resulting model appears to fairly well describe the dynamics of the data, based on the residual and forecast analysis. The model predicts that the snow depth will increase the coming weeks, good news for skiiers this season. However, as always, the model should be used as an indication rather than the truth, as its results are uncertain.
 
-Next steps could be to try other models on the data to more accurately represent it. As can be seen in plots (figure \ref{fig:cleaned}) of the data, the variance of the snow-depth varies significantly during the year: being 0 in the off-season, followed by fast snowing and thawing in the beginning and end of seasons and lower variance in between. This problem is partially mitigated by the detrending process, as this feature is less prevailant in the detrended data (as seen in \ref{fig:detrended}), however the detrended data also shows this pattern as indicated by the histogram of the residuals showin in figure \ref{fig:hist_resid}. A model that has a variable variance, e.g. GARCH model could hence be more appropriate. In order to forecast the snow depth of next year, with this approach, a macro model would also have to be developed. A primitive such would be to assume that the peak level follows e.g. a normal distribution with the sample mean and variance of the recorded history. As there are only 8 years on the recorded history the variance of this estimate would proabibly very high however. Additionally, the histogram of the peaks shown in figure \ref{fig:hist_peak} does not appear to be normally distributed.
+Next steps could be to try other models on the data to more accurately represent it. As can be seen in plots (figure \ref{fig:cleaned}) of the data, the variance of the snow-depth varies significantly during the year: being 0 in the off-season, followed by fast snowing and thawing in the beginning and end of seasons and lower variance in between. This problem is partially mitigated by the detrending process, as this feature is less prevailant in the detrended data (as seen in \ref{fig:detrended}), however the detrended data also shows this pattern as indicated by the histogram of the residuals showin in figure \ref{fig:hist_resid}. A model that has a variable variance, e.g. GARCH model could hence be more appropriate. In order to forecast the snow depth of next year, with this approach, a macro model would also have to be developed. A primitive such would be to assume that the peak level follows e.g. a i.i.d normal distribution with the sample mean and variance of the recorded history. As there are only 8 years on the recorded history the variance of this estimate would proabibly very high however. Additionally, the histogram of the peaks shown in figure \ref{fig:hist_peak} does not appear to be normally distributed.
 
 \newpage
 
@@ -109,7 +111,7 @@ library(tseries)
 library(pracma)
 ```
 
-```{r fig.cap="\\label{fig:raw_data}Raw Mammoth snow depth data", fig.height=4, fig.pos="H"}
+```{r fig.cap="\\label{fig:raw_data}Raw Mammoth snow depth data", fig.height=4, fig.pos="!htb"}
 # Read and plot raw data
 data <- fromJSON(file = "./mammoth.json")
 plot(data$depth, type="o", main="Raw data", ylab="Snow depth (in)")
@@ -186,7 +188,7 @@ data <- data.frame(
 plot(data$depth, type="o")
 ```
 
-```{r}
+```{r, include=F}
 data$depth[which(is.na(data$depth))] <- 0
 ```
 
@@ -420,7 +422,7 @@ plot(pg$freq[peaks[1:5]], type="o", xlab="Peak number", ylab="Peak frequency")
 pg <- spec.ar(detrended)
 ```
 
-```{r}
+```{r, include=F}
 plot.resids <- function(fitit, xdata) {
     S <- 1
     layout(matrix(c(1, 2, 4, 1, 3, 4), ncol = 2))
@@ -480,7 +482,7 @@ plot.resids <- function(fitit, xdata) {
 
 ```
 
-```{r, fig.cap="\\label{fig:resid_plots_missing} Plots of different characteristics of the best model's residuals fitted on the detrended data with missing values included", message=FALSE}
+```{r, fig.cap="\\label{fig:resid_plots_missing} Plots of different characteristics of the best model's residuals fitted on the detrended data with missing values included", fig.height=7, message=FALSE}
 # auto.arima(detrended)
 
 model <- sarima(detrended, 2,0,1, 0,0,1, 1, details = F)
@@ -505,7 +507,7 @@ legend("topright", legend=c("Model residuals", "Sampled normal distribution"),fi
 
 ```
 
-```{r, fig.cap="\\label{fig:resid_plots} Plots of different characteristics of the best model's residuals fitted on the detrended data with missing values excluded", message=FALSE, warning=F}
+```{r, fig.cap="\\label{fig:resid_plots} Plots of different characteristics of the best model's residuals fitted on the detrended data with missing values excluded", fig.height=7, message=FALSE, warning=F}
 # auto.arima(detrended)
 
 detrended <- ts(
@@ -722,6 +724,8 @@ polygon(xxx, yyy, border = 8, col = gray(.6, alpha = .2))
 lines(trended, lt="dashed",col=1)
 
 ```
+
+
 ```{r, fig.cap="\\label{fig:hist_peak}Histogram of the peak snow depths in the recorded history of Mammoth", fig.height=4}
 hist(agg_max_season$x, xlab = "Snow depth (in)", main="Histogram of peak snow depth")
 ```
